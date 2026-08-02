@@ -1,0 +1,228 @@
+networks:
+  prism-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  neo4j_data:
+  qdrant_data:
+  redis_data:
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: prism-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-prism}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - prism-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-prism}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: prism-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - prism-network
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.3.0
+    container_name: prism-zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    networks:
+      - prism-network
+
+  kafka:
+    image: confluentinc/cp-kafka:7.3.0
+    container_name: prism-kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    networks:
+      - prism-network
+
+  neo4j:
+    image: neo4j:5.23.0
+    container_name: prism-neo4j
+    environment:
+      NEO4J_AUTH: ${NEO4J_USERNAME:-neo4j}/${NEO4J_PASSWORD:-neo4jpassword}
+    ports:
+      - "7474:7474"
+      - "7687:7687"
+    volumes:
+      - neo4j_data:/data
+    networks:
+      - prism-network
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: prism-qdrant
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - qdrant_data:/qdrant/storage
+    networks:
+      - prism-network
+
+  embeddings-server:
+    image: ghcr.io/huggingface/text-embeddings-inference:cpu-1.2
+    platform: linux/amd64
+    container_name: prism-embeddings-server
+    command: --model-id BAAI/bge-small-en-v1.5
+    ports:
+      - "8085:80"
+    networks:
+      - prism-network
+
+  api-gateway:
+    build:
+      context: .
+      dockerfile: ./apps/api-gateway/Dockerfile
+    container_name: prism-api-gateway
+    ports:
+      - "${API_GATEWAY_PORT:-8080}:8080"
+    env_file: .env
+    networks:
+      - prism-network
+    depends_on:
+      - redis
+      - kafka
+
+  s3-connector:
+    build:
+      context: ./apps/s3-connector
+    container_name: prism-s3-connector
+    env_file: .env
+    networks:
+      - prism-network
+    depends_on:
+      - redis
+      - kafka
+
+  sqs-kafka-bridge:
+    build:
+      context: ./apps/sqs-kafka-bridge
+    container_name: prism-sqs-kafka-bridge
+    env_file: .env
+    networks:
+      - prism-network
+    depends_on:
+      - kafka
+
+  triage-worker:
+    build:
+      context: .
+      dockerfile: ./apps/triage-worker/Dockerfile
+    container_name: prism-triage-worker
+    env_file: .env
+    networks:
+      - prism-network
+    depends_on:
+      - kafka
+
+  schema-aligner:
+    build:
+      context: ./apps/schema-aligner
+    container_name: prism-schema-aligner
+    env_file: .env
+    networks:
+      - prism-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_started
+
+  gpu-extractor:
+    build:
+      context: .
+      dockerfile: ./apps/gpu-extractor/Dockerfile
+    container_name: prism-gpu-extractor
+    env_file: .env
+    networks:
+      - prism-network
+    depends_on:
+      - kafka
+
+  storage-sync:
+    build:
+      context: .
+      dockerfile: apps/storage-sync/Dockerfile
+    container_name: prism-storage-sync
+    env_file: .env
+    environment:
+      SCHEMA_REGISTRY_PATH: /schema-aligner/src/core/registry.json
+    volumes:
+      - ./apps/schema-aligner/src/core/registry.json:/schema-aligner/src/core/registry.json:ro
+    networks:
+      - prism-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_started
+      neo4j:
+        condition: service_started
+      qdrant:
+        condition: service_started
+
+  agentic-brain:
+    build:
+      context: .
+      dockerfile: ./apps/agentic-brain/Dockerfile
+    container_name: prism-agentic-brain
+    ports:
+      - "${AGENTIC_BRAIN_PORT:-8001}:8001"
+    env_file: .env
+    environment:
+      SCHEMA_REGISTRY_PATH: /schema-aligner/src/core/registry.json
+    volumes:
+      - ./apps/schema-aligner/src/core/registry.json:/schema-aligner/src/core/registry.json:ro
+    networks:
+      - prism-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      neo4j:
+        condition: service_started
+      qdrant:
+        condition: service_started
+
+  web-dashboard:
+    build:
+      context: ./apps/web-dashboard
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8001}
+        NEXT_PUBLIC_GATEWAY_URL: ${NEXT_PUBLIC_GATEWAY_URL:-http://localhost:8080}
+    container_name: prism-web-dashboard
+    ports:
+      - "${WEB_DASHBOARD_PORT:-3000}:3000"
+    env_file: .env
+    networks:
+      - prism-network
+    depends_on:
+      - agentic-brain

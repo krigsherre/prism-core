@@ -1,0 +1,61 @@
+{
+  "folders": [
+    {
+      "name": "root",
+      "path": "."
+    },
+    {
+      "name": "infra",
+      "path": "infra"
+    },
+    {
+      "name": "contracts",
+      "path": "packages/contracts"
+    },
+    {
+      "name": "agentic-brain",
+      "path": "apps/agentic-brain"
+    },
+    {
+      "name": "gpu-extractor",
+      "path": "apps/gpu-extractor"
+    },
+    {
+      "name": "schema-aligner",
+      "path": "apps/schema-aligner"
+    },
+    {
+      "name": "storage-sync",
+      "path": "apps/storage-sync"
+    },
+    {
+      "name": "api-gateway",
+      "path": "apps/api-gateway"
+    },
+    {
+      "name": "s3-connector",
+      "path": "apps/s3-connector"
+    },
+    {
+      "name": "sqs-kafka-bridge",
+      "path": "apps/sqs-kafka-bridge"
+    },
+    {
+      "name": "triage-worker",
+      "path": "apps/triage-worker"
+    },
+    {
+      "name": "web-dashboard",
+      "path": "apps/web-dashboard"
+    }
+  ],
+  "settings": {
+    "files.exclude": {
+      "**/.DS_Store": true,
+      "**/__pycache__": true,
+      "**/.pytest_cache": true,
+      "**/.next": true,
+      "**/node_modules": true
+    }
+  }
+}
