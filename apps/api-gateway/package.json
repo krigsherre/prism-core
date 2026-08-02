@@ -1,0 +1,10 @@
+{
+  "name": "api-gateway",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "build": "go build -o bin/api-gateway ./cmd/api",
+    "lint": "go vet ./...",
+    "dev": "go run ./cmd/api"
+  }
+}
