@@ -1,0 +1,21 @@
+{
+  "document_id": "cf_globex_fy23",
+  "target_table": "standardized_cash_flow",
+  "predicted_table": "standardized_cash_flow",
+  "cells": [
+    {
+      "row_index": 0,
+      "column": "net_change_in_cash",
+      "value": 170.0
+    }
+  ],
+  "relations": [],
+  "extracted_row": {
+    "net_cash_from_operating_activities": 400.0,
+    "capital_expenditure": 120.0,
+    "net_cash_from_investing_activities": -150.0,
+    "dividends_paid": 30.0,
+    "net_cash_from_financing_activities": -80.0,
+    "net_change_in_cash": 170.0
+  }
+}

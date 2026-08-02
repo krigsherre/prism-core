@@ -1,0 +1,28 @@
+{
+  "document_id": "bank_header_q1",
+  "target_table": "bank_statement_headers",
+  "predicted_table": "bank_statement_headers",
+  "extracted_row": {
+    "account_number": "****1234",
+    "bank_name": "First National",
+    "opening_balance": 1000.0,
+    "closing_balance": 1250.0,
+    "total_deposits": 500.0,
+    "total_withdrawals": 240.0,
+    "total_fees": 10.0,
+    "total_interest": 0.0,
+    "currency": "USD"
+  },
+  "cells": [
+    {"row_index": 0, "column": "opening_balance", "value": 1000.0},
+    {"row_index": 0, "column": "closing_balance", "value": 1250.0},
+    {"row_index": 0, "column": "total_deposits", "value": 500.0}
+  ],
+  "relations": [
+    {
+      "type": "sum_equals",
+      "left": "closing_balance",
+      "right": "opening + deposits - withdrawals - fees + interest"
+    }
+  ]
+}

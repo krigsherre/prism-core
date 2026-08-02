@@ -1,0 +1,20 @@
+{
+  "document_id": "po_header_simple",
+  "target_table": "purchase_order_headers",
+  "predicted_table": "purchase_order_headers",
+  "cells": [
+    {
+      "row_index": 0,
+      "column": "total_value",
+      "value": 1050.0
+    }
+  ],
+  "relations": [],
+  "extracted_row": {
+    "po_number": "PO-88",
+    "subtotal_amount": 1000.0,
+    "tax_amount": 50.0,
+    "total_value": 1050.0,
+    "currency": "USD"
+  }
+}

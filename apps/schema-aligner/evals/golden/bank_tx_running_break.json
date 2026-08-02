@@ -1,0 +1,18 @@
+{
+  "document_id": "bank_tx_running_break",
+  "target_table": "bank_statement_transactions",
+  "predicted_table": "bank_statement_transactions",
+  "cells": [],
+  "relations": [],
+  "_expect_critic_fail": true,
+  "extracted_rows": [
+    {
+      "deposit_amount": 100.0,
+      "balance": 1100.0
+    },
+    {
+      "withdrawal_amount": 50.0,
+      "balance": 2000.0
+    }
+  ]
+}

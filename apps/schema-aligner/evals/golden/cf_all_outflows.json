@@ -1,0 +1,19 @@
+{
+  "document_id": "cf_all_outflows",
+  "target_table": "standardized_cash_flow",
+  "predicted_table": "standardized_cash_flow",
+  "cells": [
+    {
+      "row_index": 0,
+      "column": "net_change_in_cash",
+      "value": -35.0
+    }
+  ],
+  "relations": [],
+  "extracted_row": {
+    "net_cash_from_operating_activities": -10.0,
+    "net_cash_from_investing_activities": -20.0,
+    "net_cash_from_financing_activities": -5.0,
+    "net_change_in_cash": -35.0
+  }
+}

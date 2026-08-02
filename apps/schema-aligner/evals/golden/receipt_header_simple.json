@@ -1,0 +1,18 @@
+{
+  "document_id": "receipt_header_simple",
+  "target_table": "receipt_headers",
+  "predicted_table": "receipt_headers",
+  "cells": [
+    {
+      "row_index": 0,
+      "column": "total_amount",
+      "value": 50.0
+    }
+  ],
+  "relations": [],
+  "extracted_row": {
+    "subtotal": 45.0,
+    "tax_amount": 5.0,
+    "total_amount": 50.0
+  }
+}

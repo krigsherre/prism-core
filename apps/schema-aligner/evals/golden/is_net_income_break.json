@@ -1,0 +1,13 @@
+{
+  "document_id": "is_net_income_break",
+  "target_table": "standardized_income_statement",
+  "predicted_table": "standardized_income_statement",
+  "cells": [],
+  "relations": [],
+  "_expect_critic_fail": true,
+  "extracted_row": {
+    "profit_before_tax": 200.0,
+    "tax_expense": 50.0,
+    "net_income": 100.0
+  }
+}

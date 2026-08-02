@@ -1,0 +1,25 @@
+{
+  "document_id": "cross_inv_lines_break",
+  "target_table": "vendor_invoice_headers",
+  "predicted_table": "vendor_invoice_headers",
+  "extracted_row": {
+    "subtotal_amount": 100.0,
+    "tax_amount": 10.0,
+    "discount_amount": 0.0,
+    "shipping_amount": 0.0,
+    "total_amount": 110.0,
+    "amount_due": 110.0,
+    "amount_paid": 0.0,
+    "_related": {
+      "invoice_line_items": [
+        {"quantity": 1, "unit_price": 40, "total_amount": 40},
+        {"quantity": 1, "unit_price": 40, "total_amount": 40}
+      ]
+    }
+  },
+  "cells": [
+    {"row_index": 0, "column": "total_amount", "value": 110.0, "tolerance": 0.01}
+  ],
+  "relations": [],
+  "_expect_critic_fail": true
+}

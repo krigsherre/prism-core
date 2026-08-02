@@ -1,0 +1,32 @@
+{
+  "document_id": "cf_with_ending_cash_related",
+  "target_table": "standardized_cash_flow",
+  "predicted_table": "standardized_cash_flow",
+  "cells": [
+    {
+      "row_index": 0,
+      "column": "cash_at_end",
+      "value": 250.0
+    }
+  ],
+  "relations": [],
+  "extracted_row": {
+    "net_cash_from_operating_activities": 100.0,
+    "net_cash_from_investing_activities": -30.0,
+    "net_cash_from_financing_activities": -20.0,
+    "net_change_in_cash": 50.0,
+    "cash_at_end": 250.0,
+    "beginning_cash": 200.0,
+    "_related": {
+      "standardized_balance_sheet": [
+        {
+          "cash_and_equivalents": 250.0,
+          "prior_cash_and_equivalents": 200.0,
+          "total_assets": 1000.0,
+          "total_liabilities": 400.0,
+          "total_shareholders_equity": 600.0
+        }
+      ]
+    }
+  }
+}

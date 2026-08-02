@@ -1,0 +1,24 @@
+{
+  "document_id": "tax_w2_bounds_ok",
+  "target_table": "tax_form_headers",
+  "predicted_table": "tax_form_headers",
+  "cells": [
+    {
+      "row_index": 0,
+      "column": "medicare_wages",
+      "value": 85000.0
+    }
+  ],
+  "relations": [],
+  "extracted_row": {
+    "social_security_wages": 80000.0,
+    "medicare_wages": 85000.0,
+    "state_wages": 80000.0,
+    "state_income_tax": 4000.0,
+    "adjusted_gross_income": 90000.0,
+    "total_income": 95000.0,
+    "taxable_income": 70000.0,
+    "refund_amount": 500.0,
+    "amount_owed": 0.0
+  }
+}

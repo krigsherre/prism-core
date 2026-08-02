@@ -1,0 +1,34 @@
+{
+  "document_id": "invoice_header_lines_match",
+  "target_table": "vendor_invoice_headers",
+  "predicted_table": "vendor_invoice_headers",
+  "cells": [
+    {
+      "row_index": 0,
+      "column": "subtotal_amount",
+      "value": 100.0
+    }
+  ],
+  "relations": [],
+  "extracted_row": {
+    "subtotal_amount": 100.0,
+    "tax_amount": 10.0,
+    "total_amount": 110.0,
+    "amount_due": 110.0,
+    "amount_paid": 0.0,
+    "_related": {
+      "invoice_line_items": [
+        {
+          "quantity": 2,
+          "unit_price": 30,
+          "total_amount": 60
+        },
+        {
+          "quantity": 1,
+          "unit_price": 40,
+          "total_amount": 40
+        }
+      ]
+    }
+  }
+}

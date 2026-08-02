@@ -1,0 +1,17 @@
+{
+  "name": "banking",
+  "schemas": ["bank_statement_headers", "bank_statement_transactions"],
+  "grounding_fields": {
+    "bank_statement_headers": ["opening_balance", "closing_balance"]
+  },
+  "rules": {
+    "bank_statement_headers": [
+      {
+        "id": "pack.bank.completeness.header_balances",
+        "type": "completeness",
+        "require": ["opening_balance", "closing_balance", "total_deposits", "total_withdrawals"],
+        "trigger_any_of": ["opening_balance", "closing_balance"]
+      }
+    ]
+  }
+}

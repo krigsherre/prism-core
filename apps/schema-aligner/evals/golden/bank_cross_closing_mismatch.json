@@ -1,0 +1,26 @@
+{
+  "document_id": "bank_cross_closing_mismatch",
+  "target_table": "bank_statement_headers",
+  "predicted_table": "bank_statement_headers",
+  "cells": [],
+  "relations": [],
+  "_expect_critic_fail": true,
+  "extracted_row": {
+    "opening_balance": 1000.0,
+    "total_deposits": 100.0,
+    "total_withdrawals": 50.0,
+    "closing_balance": 1050.0,
+    "_related": {
+      "bank_statement_transactions": [
+        {
+          "deposit_amount": 100.0,
+          "balance": 1100.0
+        },
+        {
+          "withdrawal_amount": 50.0,
+          "balance": 900.0
+        }
+      ]
+    }
+  }
+}

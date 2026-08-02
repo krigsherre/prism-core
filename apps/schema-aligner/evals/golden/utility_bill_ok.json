@@ -1,0 +1,19 @@
+{
+  "document_id": "utility_bill_ok",
+  "target_table": "utility_bills",
+  "predicted_table": "utility_bills",
+  "cells": [
+    {
+      "row_index": 0,
+      "column": "total_amount_due",
+      "value": 85.5
+    }
+  ],
+  "relations": [],
+  "extracted_row": {
+    "previous_balance": 100.0,
+    "payments_received": 100.0,
+    "new_charges": 85.5,
+    "total_amount_due": 85.5
+  }
+}

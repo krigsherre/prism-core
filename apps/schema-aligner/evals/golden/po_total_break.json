@@ -1,0 +1,13 @@
+{
+  "document_id": "po_total_break",
+  "target_table": "purchase_order_headers",
+  "predicted_table": "purchase_order_headers",
+  "cells": [],
+  "relations": [],
+  "_expect_critic_fail": true,
+  "extracted_row": {
+    "subtotal_amount": 100.0,
+    "tax_amount": 10.0,
+    "total_value": 50.0
+  }
+}

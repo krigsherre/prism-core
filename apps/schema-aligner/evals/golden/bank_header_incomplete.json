@@ -1,0 +1,12 @@
+{
+  "document_id": "bank_header_incomplete",
+  "target_table": "bank_statement_headers",
+  "predicted_table": "bank_statement_headers",
+  "cells": [],
+  "relations": [],
+  "_expect_critic_fail": true,
+  "extracted_row": {
+    "opening_balance": 1000.0,
+    "closing_balance": 1100.0
+  }
+}

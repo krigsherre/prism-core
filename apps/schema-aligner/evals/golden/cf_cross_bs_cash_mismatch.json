@@ -1,0 +1,25 @@
+{
+  "document_id": "cf_cross_bs_cash_mismatch",
+  "target_table": "standardized_cash_flow",
+  "predicted_table": "standardized_cash_flow",
+  "cells": [],
+  "relations": [],
+  "_expect_soft_fail": true,
+  "extracted_row": {
+    "net_cash_from_operating_activities": 50.0,
+    "net_cash_from_investing_activities": 0.0,
+    "net_cash_from_financing_activities": 0.0,
+    "net_change_in_cash": 50.0,
+    "cash_at_end": 250.0,
+    "_related": {
+      "standardized_balance_sheet": [
+        {
+          "cash_and_equivalents": 999.0,
+          "total_assets": 2000.0,
+          "total_liabilities": 1000.0,
+          "total_shareholders_equity": 1000.0
+        }
+      ]
+    }
+  }
+}

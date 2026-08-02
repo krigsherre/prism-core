@@ -1,0 +1,26 @@
+{
+  "document_id": "cf_acme_fy24",
+  "target_table": "standardized_cash_flow",
+  "predicted_table": "standardized_cash_flow",
+  "extracted_row": {
+    "period_name": "FY2024",
+    "net_cash_from_operating_activities": 180.0,
+    "capital_expenditure": 40.0,
+    "net_cash_from_investing_activities": -45.0,
+    "dividends_paid": 10.0,
+    "debt_issued_or_repaid": -20.0,
+    "net_cash_from_financing_activities": -30.0,
+    "net_change_in_cash": 105.0
+  },
+  "cells": [
+    {"row_index": 0, "column": "net_cash_from_operating_activities", "value": 180.0},
+    {"row_index": 0, "column": "net_change_in_cash", "value": 105.0}
+  ],
+  "relations": [
+    {
+      "type": "sum_equals",
+      "left": "net_change_in_cash",
+      "right": "operating + investing + financing"
+    }
+  ]
+}

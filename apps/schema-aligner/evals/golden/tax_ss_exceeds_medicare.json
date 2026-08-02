@@ -1,0 +1,12 @@
+{
+  "document_id": "tax_ss_exceeds_medicare",
+  "target_table": "tax_form_headers",
+  "predicted_table": "tax_form_headers",
+  "cells": [],
+  "relations": [],
+  "_expect_critic_fail": true,
+  "extracted_row": {
+    "social_security_wages": 90000.0,
+    "medicare_wages": 80000.0
+  }
+}

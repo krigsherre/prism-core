@@ -1,0 +1,13 @@
+{
+  "document_id": "bs_negative_assets",
+  "target_table": "standardized_balance_sheet",
+  "predicted_table": "standardized_balance_sheet",
+  "cells": [],
+  "relations": [],
+  "_expect_critic_fail": true,
+  "extracted_row": {
+    "total_assets": -10.0,
+    "total_liabilities": 0.0,
+    "total_shareholders_equity": -10.0
+  }
+}

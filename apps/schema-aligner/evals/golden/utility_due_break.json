@@ -1,0 +1,14 @@
+{
+  "document_id": "utility_due_break",
+  "target_table": "utility_bills",
+  "predicted_table": "utility_bills",
+  "cells": [],
+  "relations": [],
+  "_expect_critic_fail": true,
+  "extracted_row": {
+    "previous_balance": 50.0,
+    "payments_received": 50.0,
+    "new_charges": 30.0,
+    "total_amount_due": 99.0
+  }
+}

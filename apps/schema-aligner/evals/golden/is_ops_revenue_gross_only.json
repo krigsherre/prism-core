@@ -1,0 +1,18 @@
+{
+  "document_id": "is_ops_revenue_gross_only",
+  "target_table": "standardized_income_statement",
+  "predicted_table": "standardized_income_statement",
+  "cells": [
+    {
+      "row_index": 0,
+      "column": "gross_profit",
+      "value": 600.0
+    }
+  ],
+  "relations": [],
+  "extracted_row": {
+    "revenue_from_operations": 1000.0,
+    "cost_of_goods_sold": 400.0,
+    "gross_profit": 600.0
+  }
+}

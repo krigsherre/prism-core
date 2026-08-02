@@ -1,0 +1,35 @@
+{
+  "document_id": "is_globex_fy23",
+  "target_table": "standardized_income_statement",
+  "predicted_table": "standardized_income_statement",
+  "cells": [
+    {
+      "row_index": 0,
+      "column": "gross_profit",
+      "value": 850.0
+    },
+    {
+      "row_index": 0,
+      "column": "net_income",
+      "value": 360.0
+    }
+  ],
+  "relations": [],
+  "extracted_row": {
+    "revenue_from_operations": 2000.0,
+    "other_income": 50.0,
+    "total_revenue": 2050.0,
+    "cost_of_goods_sold": 1200.0,
+    "gross_profit": 850.0,
+    "sg_and_a_expenses": 200.0,
+    "r_and_d_expenses": 100.0,
+    "operating_expenses": 300.0,
+    "ebitda": 600.0,
+    "depreciation_and_amortization": 80.0,
+    "ebit": 520.0,
+    "interest_expense": 40.0,
+    "profit_before_tax": 480.0,
+    "tax_expense": 120.0,
+    "net_income": 360.0
+  }
+}

@@ -1,0 +1,49 @@
+{
+  "document_id": "bs_globex_fy23_millions",
+  "target_table": "standardized_balance_sheet",
+  "predicted_table": "standardized_balance_sheet",
+  "cells": [
+    {
+      "row_index": 0,
+      "column": "total_assets",
+      "value": 550.0
+    },
+    {
+      "row_index": 0,
+      "column": "total_liabilities",
+      "value": 250.0
+    },
+    {
+      "row_index": 0,
+      "column": "total_shareholders_equity",
+      "value": 300.0
+    }
+  ],
+  "relations": [
+    {
+      "type": "sum_equals",
+      "left": "total_assets",
+      "right": "L+E"
+    }
+  ],
+  "extracted_row": {
+    "period_name": "FY2023",
+    "context_entity_name": "Globex",
+    "context_currency": "USD",
+    "context_scale": "in millions",
+    "cash_and_equivalents": 90.0,
+    "accounts_receivable": 60.0,
+    "inventory": 40.0,
+    "total_current_assets": 200.0,
+    "property_plant_equipment": 300.0,
+    "goodwill_and_intangibles": 50.0,
+    "total_assets": 550.0,
+    "accounts_payable": 45.0,
+    "short_term_debt": 25.0,
+    "total_current_liabilities": 80.0,
+    "long_term_debt": 170.0,
+    "total_liabilities": 250.0,
+    "retained_earnings": 100.0,
+    "total_shareholders_equity": 300.0
+  }
+}

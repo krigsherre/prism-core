@@ -1,0 +1,19 @@
+{
+  "document_id": "bank_header_alt_keys",
+  "target_table": "bank_statement_headers",
+  "predicted_table": "bank_statement_headers",
+  "cells": [
+    {
+      "row_index": 0,
+      "column": "ending_balance",
+      "value": 150.0
+    }
+  ],
+  "relations": [],
+  "extracted_row": {
+    "beginning_balance": 100.0,
+    "ending_balance": 150.0,
+    "total_deposits": 80.0,
+    "total_withdrawals": 30.0
+  }
+}

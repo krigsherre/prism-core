@@ -1,0 +1,15 @@
+{
+  "document_id": "bank_tx_both_deposit_withdrawal",
+  "target_table": "bank_statement_transactions",
+  "predicted_table": "bank_statement_transactions",
+  "cells": [],
+  "relations": [],
+  "_expect_critic_fail": true,
+  "extracted_rows": [
+    {
+      "deposit_amount": 10.0,
+      "withdrawal_amount": 5.0,
+      "balance": 100.0
+    }
+  ]
+}

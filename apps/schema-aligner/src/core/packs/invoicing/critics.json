@@ -1,0 +1,38 @@
+{
+  "name": "invoicing",
+  "schemas": [
+    "vendor_invoice_headers",
+    "invoice_line_items",
+    "purchase_order_headers",
+    "purchase_order_line_items",
+    "receipt_headers",
+    "receipt_line_items"
+  ],
+  "grounding_fields": {
+    "vendor_invoice_headers": ["total_amount", "subtotal_amount", "tax_amount"]
+  },
+  "rules": {
+    "vendor_invoice_headers": [
+      {
+        "id": "pack.inv.identity.total_simple",
+        "type": "sum_equals",
+        "left": "total_amount",
+        "right": ["subtotal_amount", "tax_amount"],
+        "op": "add",
+        "skip_if_any_present": ["discount_amount", "shipping_amount"],
+        "hint": "total ≈ subtotal + tax when discount/shipping absent."
+      }
+    ],
+    "invoice_line_items": [
+      {
+        "id": "pack.inv.line.product",
+        "type": "product_equals",
+        "left": "total_amount",
+        "right": ["quantity", "unit_price"],
+        "op": "mul",
+        "skip_if_any_present": ["discount_amount", "tax_amount"],
+        "hint": "Line total ≈ qty × unit when discount/tax absent."
+      }
+    ]
+  }
+}

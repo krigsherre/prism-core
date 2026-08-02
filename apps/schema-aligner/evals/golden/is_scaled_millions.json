@@ -1,0 +1,24 @@
+{
+  "document_id": "is_scaled_millions",
+  "target_table": "standardized_income_statement",
+  "predicted_table": "standardized_income_statement",
+  "cells": [
+    {
+      "row_index": 0,
+      "column": "net_income",
+      "value": 2.25
+    }
+  ],
+  "relations": [],
+  "extracted_row": {
+    "context_scale": "in millions",
+    "revenue_from_operations": 10.0,
+    "other_income": 0.5,
+    "total_revenue": 10.5,
+    "cost_of_goods_sold": 4.0,
+    "gross_profit": 6.5,
+    "profit_before_tax": 3.0,
+    "tax_expense": 0.75,
+    "net_income": 2.25
+  }
+}

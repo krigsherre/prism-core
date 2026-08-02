@@ -1,0 +1,12 @@
+{
+  "document_id": "invoice_line_missing_qty",
+  "target_table": "invoice_line_items",
+  "predicted_table": "invoice_line_items",
+  "cells": [],
+  "relations": [],
+  "_expect_critic_fail": true,
+  "extracted_row": {
+    "unit_price": 10.0,
+    "total_amount": 50.0
+  }
+}

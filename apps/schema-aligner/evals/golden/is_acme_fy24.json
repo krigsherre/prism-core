@@ -1,0 +1,35 @@
+{
+  "document_id": "is_acme_fy24",
+  "target_table": "standardized_income_statement",
+  "predicted_table": "standardized_income_statement",
+  "extracted_row": {
+    "period_name": "FY2024",
+    "context_entity_name": "Acme Corp",
+    "context_currency": "USD",
+    "context_scale": "in millions",
+    "revenue_from_operations": 1000.0,
+    "other_income": 20.0,
+    "total_revenue": 1020.0,
+    "cost_of_goods_sold": 600.0,
+    "gross_profit": 420.0,
+    "sg_and_a_expenses": 120.0,
+    "r_and_d_expenses": 80.0,
+    "operating_expenses": 200.0,
+    "ebitda": 250.0,
+    "depreciation_and_amortization": 30.0,
+    "ebit": 220.0,
+    "interest_expense": 20.0,
+    "profit_before_tax": 200.0,
+    "tax_expense": 50.0,
+    "net_income": 150.0
+  },
+  "cells": [
+    {"row_index": 0, "column": "total_revenue", "value": 1020.0},
+    {"row_index": 0, "column": "gross_profit", "value": 420.0},
+    {"row_index": 0, "column": "net_income", "value": 150.0},
+    {"row_index": 0, "column": "ebit", "value": 220.0}
+  ],
+  "relations": [
+    {"type": "sum_equals", "left": "gross_profit", "right": "total_revenue - cost_of_goods_sold"}
+  ]
+}

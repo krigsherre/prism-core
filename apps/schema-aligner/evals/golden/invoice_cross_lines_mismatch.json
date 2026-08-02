@@ -1,0 +1,23 @@
+{
+  "document_id": "invoice_cross_lines_mismatch",
+  "target_table": "vendor_invoice_headers",
+  "predicted_table": "vendor_invoice_headers",
+  "cells": [],
+  "relations": [],
+  "_expect_critic_fail": true,
+  "extracted_row": {
+    "subtotal_amount": 100.0,
+    "tax_amount": 0.0,
+    "total_amount": 100.0,
+    "_related": {
+      "invoice_line_items": [
+        {
+          "total_amount": 30.0
+        },
+        {
+          "total_amount": 30.0
+        }
+      ]
+    }
+  }
+}

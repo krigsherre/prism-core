@@ -1,0 +1,25 @@
+{
+  "document_id": "is_paren_interest",
+  "target_table": "standardized_income_statement",
+  "predicted_table": "standardized_income_statement",
+  "cells": [
+    {
+      "row_index": 0,
+      "column": "profit_before_tax",
+      "value": 170.0
+    }
+  ],
+  "relations": [],
+  "extracted_row": {
+    "revenue_from_operations": 500.0,
+    "other_income": 0.0,
+    "total_revenue": 500.0,
+    "cost_of_goods_sold": 200.0,
+    "gross_profit": 300.0,
+    "ebit": 150.0,
+    "interest_expense": "(20)",
+    "profit_before_tax": 170.0,
+    "tax_expense": 40.0,
+    "net_income": 130.0
+  }
+}

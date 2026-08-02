@@ -1,0 +1,13 @@
+{
+  "document_id": "receipt_total_break",
+  "target_table": "receipt_headers",
+  "predicted_table": "receipt_headers",
+  "cells": [],
+  "relations": [],
+  "_expect_critic_fail": true,
+  "extracted_row": {
+    "subtotal": 40.0,
+    "tax_amount": 5.0,
+    "total_amount": 100.0
+  }
+}

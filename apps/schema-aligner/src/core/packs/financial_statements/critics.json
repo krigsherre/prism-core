@@ -1,0 +1,95 @@
+{
+  "name": "financial_statements",
+  "schemas": [
+    "standardized_balance_sheet",
+    "standardized_income_statement",
+    "standardized_cash_flow"
+  ],
+  "grounding_fields": {
+    "standardized_balance_sheet": [
+      "total_assets",
+      "total_liabilities",
+      "total_shareholders_equity",
+      "cash_and_equivalents"
+    ],
+    "standardized_income_statement": [
+      "total_revenue",
+      "gross_profit",
+      "net_income"
+    ],
+    "standardized_cash_flow": [
+      "net_cash_from_operating_activities",
+      "net_change_in_cash"
+    ]
+  },
+  "rules": {
+    "standardized_balance_sheet": [
+      {
+        "id": "pack.bs.completeness.identity_fields",
+        "type": "completeness",
+        "severity": "hard",
+        "require": ["total_assets", "total_liabilities", "total_shareholders_equity"],
+        "trigger_any_of": ["total_assets", "total_liabilities", "total_shareholders_equity"],
+        "hint": "Balance sheet identity needs all three totals."
+      },
+      {
+        "id": "pack.bs.identity.assets_eq_l_plus_e",
+        "type": "sum_equals",
+        "severity": "hard",
+        "left": "total_assets",
+        "right": ["total_liabilities", "total_shareholders_equity"],
+        "op": "add",
+        "hint": "Fix total_assets or liabilities/equity so A = L + E."
+      },
+      {
+        "id": "pack.bs.bounds.assets_non_negative",
+        "type": "bounds",
+        "severity": "hard",
+        "fields": ["total_assets"],
+        "min_value": 0
+      }
+    ],
+    "standardized_income_statement": [
+      {
+        "id": "pack.is.identity.total_revenue",
+        "type": "sum_equals",
+        "left": "total_revenue",
+        "right": ["revenue_from_operations", "other_income"],
+        "op": "add",
+        "hint": "total_revenue should equal ops revenue + other_income."
+      },
+      {
+        "id": "pack.is.identity.net_income",
+        "type": "diff_equals",
+        "left": "net_income",
+        "right": ["profit_before_tax", "tax_expense"],
+        "op": "sub",
+        "hint": "net_income ≈ PBT − tax."
+      }
+    ],
+    "standardized_cash_flow": [
+      {
+        "id": "pack.cf.completeness.net_change",
+        "type": "completeness",
+        "require": [
+          "net_change_in_cash",
+          "net_cash_from_operating_activities",
+          "net_cash_from_investing_activities",
+          "net_cash_from_financing_activities"
+        ],
+        "trigger_any_of": ["net_change_in_cash"]
+      },
+      {
+        "id": "pack.cf.identity.net_change",
+        "type": "sum_equals",
+        "left": "net_change_in_cash",
+        "right": [
+          "net_cash_from_operating_activities",
+          "net_cash_from_investing_activities",
+          "net_cash_from_financing_activities"
+        ],
+        "op": "add"
+      }
+    ]
+  }
+}

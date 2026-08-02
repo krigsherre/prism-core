@@ -1,0 +1,27 @@
+{
+  "document_id": "invoice_currency_symbols",
+  "target_table": "vendor_invoice_headers",
+  "predicted_table": "vendor_invoice_headers",
+  "cells": [
+    {
+      "row_index": 0,
+      "column": "total_amount",
+      "value": 1100.0
+    },
+    {
+      "row_index": 0,
+      "column": "amount_due",
+      "value": 1000.0
+    }
+  ],
+  "relations": [],
+  "extracted_row": {
+    "subtotal_amount": "$1,000.00",
+    "tax_amount": "$80.00",
+    "discount_amount": "$0.00",
+    "shipping_amount": "$20.00",
+    "total_amount": "$1,100.00",
+    "amount_paid": "$100.00",
+    "amount_due": "$1,000.00"
+  }
+}

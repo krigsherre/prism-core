@@ -1,0 +1,12 @@
+{
+  "document_id": "cf_incomplete_net_change",
+  "target_table": "standardized_cash_flow",
+  "predicted_table": "standardized_cash_flow",
+  "cells": [],
+  "relations": [],
+  "_expect_critic_fail": true,
+  "extracted_row": {
+    "net_change_in_cash": 100.0,
+    "net_cash_from_operating_activities": 80.0
+  }
+}

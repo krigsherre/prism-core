@@ -1,0 +1,24 @@
+{
+  "document_id": "bs_inr_crores_scale",
+  "target_table": "standardized_balance_sheet",
+  "predicted_table": "standardized_balance_sheet",
+  "cells": [
+    {
+      "row_index": 0,
+      "column": "total_assets",
+      "value": 100.0
+    }
+  ],
+  "relations": [],
+  "extracted_row": {
+    "context_currency": "INR",
+    "context_scale": "in millions",
+    "cash_and_equivalents": 12.5,
+    "accounts_receivable": 8.0,
+    "inventory": 4.5,
+    "total_current_assets": 30.0,
+    "total_assets": 100.0,
+    "total_liabilities": 40.0,
+    "total_shareholders_equity": 60.0
+  }
+}

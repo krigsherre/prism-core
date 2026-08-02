@@ -1,0 +1,29 @@
+{
+  "document_id": "invoice_acme_1001",
+  "target_table": "vendor_invoice_headers",
+  "predicted_table": "vendor_invoice_headers",
+  "extracted_row": {
+    "invoice_number": "INV-1001",
+    "vendor_name": "Acme Supplies",
+    "subtotal_amount": 100.0,
+    "tax_amount": 8.0,
+    "discount_amount": 5.0,
+    "shipping_amount": 2.0,
+    "total_amount": 105.0,
+    "amount_paid": 0.0,
+    "amount_due": 105.0,
+    "currency": "USD"
+  },
+  "cells": [
+    {"row_index": 0, "column": "subtotal_amount", "value": 100.0},
+    {"row_index": 0, "column": "total_amount", "value": 105.0},
+    {"row_index": 0, "column": "amount_due", "value": 105.0}
+  ],
+  "relations": [
+    {
+      "type": "sum_equals",
+      "left": "total_amount",
+      "right": "subtotal + tax - discount + shipping"
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "document_id": "tax_owed_and_refund",
+  "target_table": "tax_form_headers",
+  "predicted_table": "tax_form_headers",
+  "cells": [],
+  "relations": [],
+  "_expect_critic_fail": true,
+  "extracted_row": {
+    "amount_owed": 100.0,
+    "refund_amount": 50.0
+  }
+}

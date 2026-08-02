@@ -1,0 +1,21 @@
+{
+  "document_id": "bank_header_fees_interest",
+  "target_table": "bank_statement_headers",
+  "predicted_table": "bank_statement_headers",
+  "cells": [
+    {
+      "row_index": 0,
+      "column": "closing_balance",
+      "value": 5390.0
+    }
+  ],
+  "relations": [],
+  "extracted_row": {
+    "opening_balance": 5000.0,
+    "total_deposits": 1200.0,
+    "total_withdrawals": 800.0,
+    "total_fees": 25.0,
+    "total_interest": 15.0,
+    "closing_balance": 5390.0
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "document_id": "cf_identity_break",
+  "target_table": "standardized_cash_flow",
+  "predicted_table": "standardized_cash_flow",
+  "cells": [],
+  "relations": [],
+  "_expect_critic_fail": true,
+  "extracted_row": {
+    "net_cash_from_operating_activities": 100.0,
+    "net_cash_from_investing_activities": -20.0,
+    "net_cash_from_financing_activities": -10.0,
+    "net_change_in_cash": 999.0
+  }
+}

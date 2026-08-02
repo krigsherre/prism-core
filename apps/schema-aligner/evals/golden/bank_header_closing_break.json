@@ -1,0 +1,14 @@
+{
+  "document_id": "bank_header_closing_break",
+  "target_table": "bank_statement_headers",
+  "predicted_table": "bank_statement_headers",
+  "cells": [],
+  "relations": [],
+  "_expect_critic_fail": true,
+  "extracted_row": {
+    "opening_balance": 1000.0,
+    "total_deposits": 100.0,
+    "total_withdrawals": 50.0,
+    "closing_balance": 2000.0
+  }
+}

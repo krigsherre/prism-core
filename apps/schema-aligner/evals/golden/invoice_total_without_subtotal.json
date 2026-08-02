@@ -1,0 +1,11 @@
+{
+  "document_id": "invoice_total_without_subtotal",
+  "target_table": "vendor_invoice_headers",
+  "predicted_table": "vendor_invoice_headers",
+  "cells": [],
+  "relations": [],
+  "_expect_critic_fail": true,
+  "extracted_row": {
+    "total_amount": 105.0
+  }
+}
