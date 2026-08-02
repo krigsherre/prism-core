@@ -1,0 +1,37 @@
+syntax = "proto3";
+
+package prism.v1;
+
+option go_package = "contracts/gen/go/prism/v1;prismv1";
+
+enum NodeType {
+  NODE_TYPE_UNSPECIFIED = 0;
+  NODE_TYPE_TEXT = 1;
+  NODE_TYPE_TABLE = 2;
+  NODE_TYPE_IMAGE = 3;
+  NODE_TYPE_KEY_VALUE = 4;
+  NODE_TYPE_FORM = 5;
+  NODE_TYPE_SECTION_HEADER = 6;
+  NODE_TYPE_TITLE = 7;
+  NODE_TYPE_CHECKBOX = 8;
+  NODE_TYPE_CODE = 9;
+}
+
+message Provenance {
+  int32 page_number = 1;
+  repeated float bounding_box = 2; // [x_min, y_min, x_max, y_max]
+}
+
+message Node {
+  string id = 1;
+  NodeType type = 2;
+  string content = 3;
+  Provenance provenance = 4;
+  repeated Node children = 5;
+}
+
+message DocumentDOM {
+  repeated Node nodes = 1;
+  map<string, string> metadata = 2;
+  string document_id = 3;
+}

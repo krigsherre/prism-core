@@ -1,0 +1,32 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://prism.dev/schemas/SchemaSynonym.json",
+  "type": "object",
+  "title": "SchemaSynonym",
+  "description": "Schema mapping synonyms",
+  "properties": {
+    "id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "target_table": {
+      "type": "string"
+    },
+    "raw_label": {
+      "type": "string"
+    },
+    "mapped_column": {
+      "type": "string"
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "required": [
+    "id",
+    "target_table",
+    "raw_label",
+    "mapped_column"
+  ]
+}

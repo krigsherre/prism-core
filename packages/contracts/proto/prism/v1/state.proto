@@ -1,0 +1,20 @@
+syntax = "proto3";
+
+package prism.v1;
+
+option go_package = "contracts/gen/go/prism/v1;prismv1";
+
+enum AgentStatus {
+  AGENT_STATUS_UNSPECIFIED = 0;
+  AGENT_STATUS_IDLE = 1;
+  AGENT_STATUS_PROCESSING = 2;
+  AGENT_STATUS_COMPLETED = 3;
+  AGENT_STATUS_FAILED = 4;
+}
+
+message AgentState {
+  string agent_id = 1;
+  AgentStatus status = 2;
+  string last_updated = 3;
+  map<string, string> context = 4;
+}

@@ -1,0 +1,44 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://prism.dev/schemas/AlignedSQLPayload.json",
+  "type": "object",
+  "title": "AlignedSQLPayload",
+  "description": "Payload for event-driven table alignment",
+  "properties": {
+    "document_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "tenant_id": {
+      "type": "string"
+    },
+    "target_table": {
+      "type": "string"
+    },
+    "mapping_status": {
+      "type": "string",
+      "enum": ["MAPPED", "NEEDS_REVIEW", "REJECTED"]
+    },
+    "strict_columns": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "unmapped_jsonb": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "required": [
+    "document_id",
+    "tenant_id",
+    "target_table",
+    "mapping_status",
+    "strict_columns",
+    "unmapped_jsonb",
+    "timestamp"
+  ]
+}
