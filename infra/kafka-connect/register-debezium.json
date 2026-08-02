@@ -1,0 +1,16 @@
+{
+  "name": "prism-postgres-connector",
+  "config": {
+    "connector.class": "io.debezium.connector.postgresql.PostgresConnector",
+    "tasks.max": "1",
+    "database.hostname": "postgres",
+    "database.port": "5432",
+    "database.user": "postgres",
+    "database.password": "postgres",
+    "database.dbname": "prism",
+    "topic.prefix": "postgres",
+    "schema.include.list": "public",
+    "table.include.list": "public.extracted_tables",
+    "plugin.name": "pgoutput"
+  }
+}

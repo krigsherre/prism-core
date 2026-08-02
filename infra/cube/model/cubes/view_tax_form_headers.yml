@@ -1,0 +1,113 @@
+cubes:
+- name: ViewTaxFormHeaders
+  sql: SELECT * FROM view_tax_form_headers
+  measures:
+  - name: count
+    type: count
+  - name: total_tax_year
+    type: sum
+    sql: tax_year
+  - name: avg_tax_year
+    type: avg
+    sql: tax_year
+  - name: total_total_income
+    type: sum
+    sql: total_income
+  - name: avg_total_income
+    type: avg
+    sql: total_income
+  - name: total_adjusted_gross_income
+    type: sum
+    sql: adjusted_gross_income
+  - name: avg_adjusted_gross_income
+    type: avg
+    sql: adjusted_gross_income
+  - name: total_taxable_income
+    type: sum
+    sql: taxable_income
+  - name: avg_taxable_income
+    type: avg
+    sql: taxable_income
+  - name: total_total_tax
+    type: sum
+    sql: total_tax
+  - name: avg_total_tax
+    type: avg
+    sql: total_tax
+  - name: total_tax_withheld
+    type: sum
+    sql: tax_withheld
+  - name: avg_tax_withheld
+    type: avg
+    sql: tax_withheld
+  - name: total_amount_owed
+    type: sum
+    sql: amount_owed
+  - name: avg_amount_owed
+    type: avg
+    sql: amount_owed
+  - name: total_refund_amount
+    type: sum
+    sql: refund_amount
+  - name: avg_refund_amount
+    type: avg
+    sql: refund_amount
+  dimensions:
+  - name: id
+    type: string
+    sql: id
+    primary_key: true
+  - name: tenant_id
+    type: string
+    sql: tenant_id
+  - name: sys_document_id
+    type: string
+    sql: sys_document_id
+  - name: form_type
+    type: string
+    sql: form_type
+  - name: tax_year
+    type: number
+    sql: tax_year
+  - name: taxpayer_name
+    type: string
+    sql: taxpayer_name
+  - name: taxpayer_address
+    type: string
+    sql: taxpayer_address
+  - name: taxpayer_id
+    type: string
+    sql: taxpayer_id
+  - name: spouse_name
+    type: string
+    sql: spouse_name
+  - name: spouse_id
+    type: string
+    sql: spouse_id
+  - name: total_income
+    type: number
+    sql: total_income
+  - name: adjusted_gross_income
+    type: number
+    sql: adjusted_gross_income
+  - name: taxable_income
+    type: number
+    sql: taxable_income
+  - name: total_tax
+    type: number
+    sql: total_tax
+  - name: tax_withheld
+    type: number
+    sql: tax_withheld
+  - name: amount_owed
+    type: number
+    sql: amount_owed
+  - name: refund_amount
+    type: number
+    sql: refund_amount
+  - name: filing_status
+    type: string
+    sql: filing_status
+  - name: additional_metadata
+    type: string
+    sql: CAST(additional_metadata AS TEXT)

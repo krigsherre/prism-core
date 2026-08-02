@@ -1,0 +1,95 @@
+cubes:
+- name: ViewCustomsDeclarationsItems
+  sql: SELECT * FROM view_customs_declarations_items
+  measures:
+  - name: count
+    type: count
+  - name: total_item_number
+    type: sum
+    sql: item_number
+  - name: avg_item_number
+    type: avg
+    sql: item_number
+  - name: total_quantity
+    type: sum
+    sql: quantity
+  - name: avg_quantity
+    type: avg
+    sql: quantity
+  - name: total_net_weight
+    type: sum
+    sql: net_weight
+  - name: avg_net_weight
+    type: avg
+    sql: net_weight
+  - name: total_gross_weight
+    type: sum
+    sql: gross_weight
+  - name: avg_gross_weight
+    type: avg
+    sql: gross_weight
+  - name: total_value
+    type: sum
+    sql: value
+  - name: avg_value
+    type: avg
+    sql: value
+  - name: total_duty_rate
+    type: sum
+    sql: duty_rate
+  - name: avg_duty_rate
+    type: avg
+    sql: duty_rate
+  - name: total_duty_amount
+    type: sum
+    sql: duty_amount
+  - name: avg_duty_amount
+    type: avg
+    sql: duty_amount
+  dimensions:
+  - name: id
+    type: string
+    sql: id
+    primary_key: true
+  - name: tenant_id
+    type: string
+    sql: tenant_id
+  - name: sys_document_id
+    type: string
+    sql: sys_document_id
+  - name: item_number
+    type: number
+    sql: item_number
+  - name: hs_code
+    type: string
+    sql: hs_code
+  - name: description
+    type: string
+    sql: description
+  - name: country_of_origin
+    type: string
+    sql: country_of_origin
+  - name: quantity
+    type: number
+    sql: quantity
+  - name: unit_of_measure
+    type: string
+    sql: unit_of_measure
+  - name: net_weight
+    type: number
+    sql: net_weight
+  - name: gross_weight
+    type: number
+    sql: gross_weight
+  - name: value
+    type: number
+    sql: value
+  - name: duty_rate
+    type: number
+    sql: duty_rate
+  - name: duty_amount
+    type: number
+    sql: duty_amount
+  - name: additional_metadata
+    type: string
+    sql: CAST(additional_metadata AS TEXT)

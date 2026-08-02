@@ -1,0 +1,173 @@
+cubes:
+- name: ViewStandardizedIncomeStatement
+  sql: SELECT * FROM view_standardized_income_statement
+  measures:
+  - name: count
+    type: count
+  - name: total_revenue_from_operations
+    type: sum
+    sql: revenue_from_operations
+  - name: avg_revenue_from_operations
+    type: avg
+    sql: revenue_from_operations
+  - name: total_other_income
+    type: sum
+    sql: other_income
+  - name: avg_other_income
+    type: avg
+    sql: other_income
+  - name: total_total_revenue
+    type: sum
+    sql: total_revenue
+  - name: avg_total_revenue
+    type: avg
+    sql: total_revenue
+  - name: total_cost_of_goods_sold
+    type: sum
+    sql: cost_of_goods_sold
+  - name: avg_cost_of_goods_sold
+    type: avg
+    sql: cost_of_goods_sold
+  - name: total_gross_profit
+    type: sum
+    sql: gross_profit
+  - name: avg_gross_profit
+    type: avg
+    sql: gross_profit
+  - name: total_sg_and_a_expenses
+    type: sum
+    sql: sg_and_a_expenses
+  - name: avg_sg_and_a_expenses
+    type: avg
+    sql: sg_and_a_expenses
+  - name: total_r_and_d_expenses
+    type: sum
+    sql: r_and_d_expenses
+  - name: avg_r_and_d_expenses
+    type: avg
+    sql: r_and_d_expenses
+  - name: total_operating_expenses
+    type: sum
+    sql: operating_expenses
+  - name: avg_operating_expenses
+    type: avg
+    sql: operating_expenses
+  - name: total_ebitda
+    type: sum
+    sql: ebitda
+  - name: avg_ebitda
+    type: avg
+    sql: ebitda
+  - name: total_depreciation_and_amortization
+    type: sum
+    sql: depreciation_and_amortization
+  - name: avg_depreciation_and_amortization
+    type: avg
+    sql: depreciation_and_amortization
+  - name: total_ebit
+    type: sum
+    sql: ebit
+  - name: avg_ebit
+    type: avg
+    sql: ebit
+  - name: total_interest_expense
+    type: sum
+    sql: interest_expense
+  - name: avg_interest_expense
+    type: avg
+    sql: interest_expense
+  - name: total_profit_before_tax
+    type: sum
+    sql: profit_before_tax
+  - name: avg_profit_before_tax
+    type: avg
+    sql: profit_before_tax
+  - name: total_tax_expense
+    type: sum
+    sql: tax_expense
+  - name: avg_tax_expense
+    type: avg
+    sql: tax_expense
+  - name: total_net_income
+    type: sum
+    sql: net_income
+  - name: avg_net_income
+    type: avg
+    sql: net_income
+  - name: total_eps_basic
+    type: sum
+    sql: eps_basic
+  - name: avg_eps_basic
+    type: avg
+    sql: eps_basic
+  - name: total_eps_diluted
+    type: sum
+    sql: eps_diluted
+  - name: avg_eps_diluted
+    type: avg
+    sql: eps_diluted
+  dimensions:
+  - name: id
+    type: string
+    sql: id
+    primary_key: true
+  - name: tenant_id
+    type: string
+    sql: tenant_id
+  - name: sys_document_id
+    type: string
+    sql: sys_document_id
+  - name: revenue_from_operations
+    type: number
+    sql: revenue_from_operations
+  - name: other_income
+    type: number
+    sql: other_income
+  - name: total_revenue
+    type: number
+    sql: total_revenue
+  - name: cost_of_goods_sold
+    type: number
+    sql: cost_of_goods_sold
+  - name: gross_profit
+    type: number
+    sql: gross_profit
+  - name: sg_and_a_expenses
+    type: number
+    sql: sg_and_a_expenses
+  - name: r_and_d_expenses
+    type: number
+    sql: r_and_d_expenses
+  - name: operating_expenses
+    type: number
+    sql: operating_expenses
+  - name: ebitda
+    type: number
+    sql: ebitda
+  - name: depreciation_and_amortization
+    type: number
+    sql: depreciation_and_amortization
+  - name: ebit
+    type: number
+    sql: ebit
+  - name: interest_expense
+    type: number
+    sql: interest_expense
+  - name: profit_before_tax
+    type: number
+    sql: profit_before_tax
+  - name: tax_expense
+    type: number
+    sql: tax_expense
+  - name: net_income
+    type: number
+    sql: net_income
+  - name: eps_basic
+    type: number
+    sql: eps_basic
+  - name: eps_diluted
+    type: number
+    sql: eps_diluted
+  - name: additional_metadata
+    type: string
+    sql: CAST(additional_metadata AS TEXT)

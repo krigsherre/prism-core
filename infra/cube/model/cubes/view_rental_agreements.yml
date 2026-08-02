@@ -1,0 +1,101 @@
+cubes:
+- name: ViewRentalAgreements
+  sql: SELECT * FROM view_rental_agreements
+  measures:
+  - name: count
+    type: count
+  - name: total_monthly_rent
+    type: sum
+    sql: monthly_rent
+  - name: avg_monthly_rent
+    type: avg
+    sql: monthly_rent
+  - name: total_security_deposit
+    type: sum
+    sql: security_deposit
+  - name: avg_security_deposit
+    type: avg
+    sql: security_deposit
+  - name: total_pet_deposit
+    type: sum
+    sql: pet_deposit
+  - name: avg_pet_deposit
+    type: avg
+    sql: pet_deposit
+  - name: total_late_fee
+    type: sum
+    sql: late_fee
+  - name: avg_late_fee
+    type: avg
+    sql: late_fee
+  - name: total_due_day_of_month
+    type: sum
+    sql: due_day_of_month
+  - name: avg_due_day_of_month
+    type: avg
+    sql: due_day_of_month
+  dimensions:
+  - name: id
+    type: string
+    sql: id
+    primary_key: true
+  - name: tenant_id
+    type: string
+    sql: tenant_id
+  - name: sys_document_id
+    type: string
+    sql: sys_document_id
+  - name: agreement_id
+    type: string
+    sql: agreement_id
+  - name: landlord_name
+    type: string
+    sql: landlord_name
+  - name: landlord_address
+    type: string
+    sql: landlord_address
+  - name: tenant_name
+    type: string
+    sql: tenant_name
+  - name: tenant_phone
+    type: string
+    sql: tenant_phone
+  - name: property_address
+    type: string
+    sql: property_address
+  - name: property_type
+    type: string
+    sql: property_type
+  - name: lease_start_date
+    type: time
+    sql: lease_start_date
+  - name: lease_end_date
+    type: time
+    sql: lease_end_date
+  - name: monthly_rent
+    type: number
+    sql: monthly_rent
+  - name: security_deposit
+    type: number
+    sql: security_deposit
+  - name: pet_deposit
+    type: number
+    sql: pet_deposit
+  - name: late_fee
+    type: number
+    sql: late_fee
+  - name: payment_frequency
+    type: string
+    sql: payment_frequency
+  - name: due_day_of_month
+    type: number
+    sql: due_day_of_month
+  - name: pet_policy
+    type: string
+    sql: pet_policy
+  - name: utilities_included
+    type: string
+    sql: utilities_included
+  - name: additional_metadata
+    type: string
+    sql: CAST(additional_metadata AS TEXT)

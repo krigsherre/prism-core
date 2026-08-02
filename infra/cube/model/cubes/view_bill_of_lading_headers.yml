@@ -1,0 +1,101 @@
+cubes:
+- name: ViewBillOfLadingHeaders
+  sql: SELECT * FROM view_bill_of_lading_headers
+  measures:
+  - name: count
+    type: count
+  - name: total_total_weight
+    type: sum
+    sql: total_weight
+  - name: avg_total_weight
+    type: avg
+    sql: total_weight
+  - name: total_total_volume
+    type: sum
+    sql: total_volume
+  - name: avg_total_volume
+    type: avg
+    sql: total_volume
+  dimensions:
+  - name: id
+    type: string
+    sql: id
+    primary_key: true
+  - name: tenant_id
+    type: string
+    sql: tenant_id
+  - name: sys_document_id
+    type: string
+    sql: sys_document_id
+  - name: bol_number
+    type: string
+    sql: bol_number
+  - name: booking_number
+    type: string
+    sql: booking_number
+  - name: shipper_name
+    type: string
+    sql: shipper_name
+  - name: shipper_address
+    type: string
+    sql: shipper_address
+  - name: consignee_name
+    type: string
+    sql: consignee_name
+  - name: consignee_address
+    type: string
+    sql: consignee_address
+  - name: notify_party_name
+    type: string
+    sql: notify_party_name
+  - name: notify_party_address
+    type: string
+    sql: notify_party_address
+  - name: carrier_name
+    type: string
+    sql: carrier_name
+  - name: vessel_name
+    type: string
+    sql: vessel_name
+  - name: voyage_number
+    type: string
+    sql: voyage_number
+  - name: port_of_loading
+    type: string
+    sql: port_of_loading
+  - name: port_of_discharge
+    type: string
+    sql: port_of_discharge
+  - name: place_of_delivery
+    type: string
+    sql: place_of_delivery
+  - name: place_of_receipt
+    type: string
+    sql: place_of_receipt
+  - name: ship_date
+    type: time
+    sql: ship_date
+  - name: delivery_date
+    type: time
+    sql: delivery_date
+  - name: freight_charge_terms
+    type: string
+    sql: freight_charge_terms
+  - name: total_weight
+    type: number
+    sql: total_weight
+  - name: total_volume
+    type: number
+    sql: total_volume
+  - name: tracking_number
+    type: string
+    sql: tracking_number
+  - name: container_number
+    type: string
+    sql: container_number
+  - name: seal_number
+    type: string
+    sql: seal_number
+  - name: additional_metadata
+    type: string
+    sql: CAST(additional_metadata AS TEXT)

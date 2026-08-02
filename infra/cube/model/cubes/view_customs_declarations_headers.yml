@@ -1,0 +1,113 @@
+cubes:
+- name: ViewCustomsDeclarationsHeaders
+  sql: SELECT * FROM view_customs_declarations_headers
+  measures:
+  - name: count
+    type: count
+  - name: total_total_invoice_value
+    type: sum
+    sql: total_invoice_value
+  - name: avg_total_invoice_value
+    type: avg
+    sql: total_invoice_value
+  - name: total_freight_charges
+    type: sum
+    sql: freight_charges
+  - name: avg_freight_charges
+    type: avg
+    sql: freight_charges
+  - name: total_insurance_charges
+    type: sum
+    sql: insurance_charges
+  - name: avg_insurance_charges
+    type: avg
+    sql: insurance_charges
+  - name: total_total_customs_value
+    type: sum
+    sql: total_customs_value
+  - name: avg_total_customs_value
+    type: avg
+    sql: total_customs_value
+  - name: total_customs_duties
+    type: sum
+    sql: customs_duties
+  - name: avg_customs_duties
+    type: avg
+    sql: customs_duties
+  - name: total_taxes
+    type: sum
+    sql: taxes
+  - name: avg_taxes
+    type: avg
+    sql: taxes
+  dimensions:
+  - name: id
+    type: string
+    sql: id
+    primary_key: true
+  - name: tenant_id
+    type: string
+    sql: tenant_id
+  - name: sys_document_id
+    type: string
+    sql: sys_document_id
+  - name: declaration_number
+    type: string
+    sql: declaration_number
+  - name: exporter_name
+    type: string
+    sql: exporter_name
+  - name: exporter_address
+    type: string
+    sql: exporter_address
+  - name: importer_name
+    type: string
+    sql: importer_name
+  - name: importer_address
+    type: string
+    sql: importer_address
+  - name: declarant_name
+    type: string
+    sql: declarant_name
+  - name: port_of_entry
+    type: string
+    sql: port_of_entry
+  - name: port_of_exit
+    type: string
+    sql: port_of_exit
+  - name: declaration_date
+    type: time
+    sql: declaration_date
+  - name: total_invoice_value
+    type: number
+    sql: total_invoice_value
+  - name: freight_charges
+    type: number
+    sql: freight_charges
+  - name: insurance_charges
+    type: number
+    sql: insurance_charges
+  - name: total_customs_value
+    type: number
+    sql: total_customs_value
+  - name: customs_duties
+    type: number
+    sql: customs_duties
+  - name: taxes
+    type: number
+    sql: taxes
+  - name: currency
+    type: string
+    sql: currency
+  - name: country_of_origin
+    type: string
+    sql: country_of_origin
+  - name: country_of_destination
+    type: string
+    sql: country_of_destination
+  - name: transport_mode
+    type: string
+    sql: transport_mode
+  - name: additional_metadata
+    type: string
+    sql: CAST(additional_metadata AS TEXT)

@@ -1,0 +1,134 @@
+cubes:
+- name: ViewCreditReports
+  sql: SELECT * FROM view_credit_reports
+  measures:
+  - name: count
+    type: count
+  - name: total_credit_score
+    type: sum
+    sql: credit_score
+  - name: avg_credit_score
+    type: avg
+    sql: credit_score
+  - name: total_total_debt
+    type: sum
+    sql: total_debt
+  - name: avg_total_debt
+    type: avg
+    sql: total_debt
+  - name: total_total_credit_limit
+    type: sum
+    sql: total_credit_limit
+  - name: avg_total_credit_limit
+    type: avg
+    sql: total_credit_limit
+  - name: total_available_credit
+    type: sum
+    sql: available_credit
+  - name: avg_available_credit
+    type: avg
+    sql: available_credit
+  - name: total_number_of_accounts
+    type: sum
+    sql: number_of_accounts
+  - name: avg_number_of_accounts
+    type: avg
+    sql: number_of_accounts
+  - name: total_open_accounts
+    type: sum
+    sql: open_accounts
+  - name: avg_open_accounts
+    type: avg
+    sql: open_accounts
+  - name: total_closed_accounts
+    type: sum
+    sql: closed_accounts
+  - name: avg_closed_accounts
+    type: avg
+    sql: closed_accounts
+  - name: total_delinquencies
+    type: sum
+    sql: delinquencies
+  - name: avg_delinquencies
+    type: avg
+    sql: delinquencies
+  - name: total_public_records
+    type: sum
+    sql: public_records
+  - name: avg_public_records
+    type: avg
+    sql: public_records
+  - name: total_inquiries
+    type: sum
+    sql: inquiries
+  - name: avg_inquiries
+    type: avg
+    sql: inquiries
+  dimensions:
+  - name: id
+    type: string
+    sql: id
+    primary_key: true
+  - name: tenant_id
+    type: string
+    sql: tenant_id
+  - name: sys_document_id
+    type: string
+    sql: sys_document_id
+  - name: report_id
+    type: string
+    sql: report_id
+  - name: consumer_name
+    type: string
+    sql: consumer_name
+  - name: consumer_address
+    type: string
+    sql: consumer_address
+  - name: ssn_last_four
+    type: string
+    sql: ssn_last_four
+  - name: date_of_birth
+    type: time
+    sql: date_of_birth
+  - name: credit_score
+    type: number
+    sql: credit_score
+  - name: scoring_model
+    type: string
+    sql: scoring_model
+  - name: bureau_name
+    type: string
+    sql: bureau_name
+  - name: report_date
+    type: time
+    sql: report_date
+  - name: total_debt
+    type: number
+    sql: total_debt
+  - name: total_credit_limit
+    type: number
+    sql: total_credit_limit
+  - name: available_credit
+    type: number
+    sql: available_credit
+  - name: number_of_accounts
+    type: number
+    sql: number_of_accounts
+  - name: open_accounts
+    type: number
+    sql: open_accounts
+  - name: closed_accounts
+    type: number
+    sql: closed_accounts
+  - name: delinquencies
+    type: number
+    sql: delinquencies
+  - name: public_records
+    type: number
+    sql: public_records
+  - name: inquiries
+    type: number
+    sql: inquiries
+  - name: additional_metadata
+    type: string
+    sql: CAST(additional_metadata AS TEXT)

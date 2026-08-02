@@ -1,0 +1,86 @@
+cubes:
+- name: ViewContractHeaders
+  sql: SELECT * FROM view_contract_headers
+  measures:
+  - name: count
+    type: count
+  - name: total_contract_value
+    type: sum
+    sql: contract_value
+  - name: avg_contract_value
+    type: avg
+    sql: contract_value
+  - name: total_notice_period_days
+    type: sum
+    sql: notice_period_days
+  - name: avg_notice_period_days
+    type: avg
+    sql: notice_period_days
+  dimensions:
+  - name: id
+    type: string
+    sql: id
+    primary_key: true
+  - name: tenant_id
+    type: string
+    sql: tenant_id
+  - name: sys_document_id
+    type: string
+    sql: sys_document_id
+  - name: contract_id
+    type: string
+    sql: contract_id
+  - name: contract_title
+    type: string
+    sql: contract_title
+  - name: contract_type
+    type: string
+    sql: contract_type
+  - name: party_a_name
+    type: string
+    sql: party_a_name
+  - name: party_a_address
+    type: string
+    sql: party_a_address
+  - name: party_b_name
+    type: string
+    sql: party_b_name
+  - name: party_b_address
+    type: string
+    sql: party_b_address
+  - name: effective_date
+    type: time
+    sql: effective_date
+  - name: expiration_date
+    type: time
+    sql: expiration_date
+  - name: signature_date
+    type: time
+    sql: signature_date
+  - name: contract_value
+    type: number
+    sql: contract_value
+  - name: currency
+    type: string
+    sql: currency
+  - name: jurisdiction
+    type: string
+    sql: jurisdiction
+  - name: governing_law
+    type: string
+    sql: governing_law
+  - name: renewal_terms
+    type: string
+    sql: renewal_terms
+  - name: notice_period_days
+    type: number
+    sql: notice_period_days
+  - name: payment_terms
+    type: string
+    sql: payment_terms
+  - name: status
+    type: string
+    sql: status
+  - name: additional_metadata
+    type: string
+    sql: CAST(additional_metadata AS TEXT)

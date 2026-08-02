@@ -1,0 +1,71 @@
+cubes:
+- name: ViewPurchaseOrderLineItems
+  sql: SELECT * FROM view_purchase_order_line_items
+  measures:
+  - name: count
+    type: count
+  - name: total_quantity
+    type: sum
+    sql: quantity
+  - name: avg_quantity
+    type: avg
+    sql: quantity
+  - name: total_unit_price
+    type: sum
+    sql: unit_price
+  - name: avg_unit_price
+    type: avg
+    sql: unit_price
+  - name: total_discount_amount
+    type: sum
+    sql: discount_amount
+  - name: avg_discount_amount
+    type: avg
+    sql: discount_amount
+  - name: total_total_price
+    type: sum
+    sql: total_price
+  - name: avg_total_price
+    type: avg
+    sql: total_price
+  dimensions:
+  - name: id
+    type: string
+    sql: id
+    primary_key: true
+  - name: tenant_id
+    type: string
+    sql: tenant_id
+  - name: sys_document_id
+    type: string
+    sql: sys_document_id
+  - name: item_code
+    type: string
+    sql: item_code
+  - name: supplier_part_number
+    type: string
+    sql: supplier_part_number
+  - name: description
+    type: string
+    sql: description
+  - name: quantity
+    type: number
+    sql: quantity
+  - name: unit_of_measure
+    type: string
+    sql: unit_of_measure
+  - name: unit_price
+    type: number
+    sql: unit_price
+  - name: discount_amount
+    type: number
+    sql: discount_amount
+  - name: total_price
+    type: number
+    sql: total_price
+  - name: expected_delivery_date
+    type: time
+    sql: expected_delivery_date
+  - name: additional_metadata
+    type: string
+    sql: CAST(additional_metadata AS TEXT)

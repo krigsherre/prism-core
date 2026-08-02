@@ -1,0 +1,56 @@
+cubes:
+- name: ViewBillOfLadingItems
+  sql: SELECT * FROM view_bill_of_lading_items
+  measures:
+  - name: count
+    type: count
+  - name: total_number_of_packages
+    type: sum
+    sql: number_of_packages
+  - name: avg_number_of_packages
+    type: avg
+    sql: number_of_packages
+  - name: total_gross_weight
+    type: sum
+    sql: gross_weight
+  - name: avg_gross_weight
+    type: avg
+    sql: gross_weight
+  - name: total_measurement
+    type: sum
+    sql: measurement
+  - name: avg_measurement
+    type: avg
+    sql: measurement
+  dimensions:
+  - name: id
+    type: string
+    sql: id
+    primary_key: true
+  - name: tenant_id
+    type: string
+    sql: tenant_id
+  - name: sys_document_id
+    type: string
+    sql: sys_document_id
+  - name: marks_and_numbers
+    type: string
+    sql: marks_and_numbers
+  - name: number_of_packages
+    type: number
+    sql: number_of_packages
+  - name: package_type
+    type: string
+    sql: package_type
+  - name: goods_description
+    type: string
+    sql: goods_description
+  - name: gross_weight
+    type: number
+    sql: gross_weight
+  - name: measurement
+    type: number
+    sql: measurement
+  - name: additional_metadata
+    type: string
+    sql: CAST(additional_metadata AS TEXT)

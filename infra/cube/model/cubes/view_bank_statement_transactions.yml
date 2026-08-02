@@ -1,0 +1,62 @@
+cubes:
+- name: ViewBankStatementTransactions
+  sql: SELECT * FROM view_bank_statement_transactions
+  measures:
+  - name: count
+    type: count
+  - name: total_withdrawal_amount
+    type: sum
+    sql: withdrawal_amount
+  - name: avg_withdrawal_amount
+    type: avg
+    sql: withdrawal_amount
+  - name: total_deposit_amount
+    type: sum
+    sql: deposit_amount
+  - name: avg_deposit_amount
+    type: avg
+    sql: deposit_amount
+  - name: total_balance
+    type: sum
+    sql: balance
+  - name: avg_balance
+    type: avg
+    sql: balance
+  dimensions:
+  - name: id
+    type: string
+    sql: id
+    primary_key: true
+  - name: tenant_id
+    type: string
+    sql: tenant_id
+  - name: sys_document_id
+    type: string
+    sql: sys_document_id
+  - name: transaction_date
+    type: time
+    sql: transaction_date
+  - name: post_date
+    type: time
+    sql: post_date
+  - name: description
+    type: string
+    sql: description
+  - name: check_number
+    type: string
+    sql: check_number
+  - name: transaction_type
+    type: string
+    sql: transaction_type
+  - name: withdrawal_amount
+    type: number
+    sql: withdrawal_amount
+  - name: deposit_amount
+    type: number
+    sql: deposit_amount
+  - name: balance
+    type: number
+    sql: balance
+  - name: additional_metadata
+    type: string
+    sql: CAST(additional_metadata AS TEXT)

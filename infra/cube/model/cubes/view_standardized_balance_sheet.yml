@@ -1,0 +1,146 @@
+cubes:
+- name: ViewStandardizedBalanceSheet
+  sql: SELECT * FROM view_standardized_balance_sheet
+  measures:
+  - name: count
+    type: count
+  - name: total_cash_and_equivalents
+    type: sum
+    sql: cash_and_equivalents
+  - name: avg_cash_and_equivalents
+    type: avg
+    sql: cash_and_equivalents
+  - name: total_accounts_receivable
+    type: sum
+    sql: accounts_receivable
+  - name: avg_accounts_receivable
+    type: avg
+    sql: accounts_receivable
+  - name: total_inventory
+    type: sum
+    sql: inventory
+  - name: avg_inventory
+    type: avg
+    sql: inventory
+  - name: total_total_current_assets
+    type: sum
+    sql: total_current_assets
+  - name: avg_total_current_assets
+    type: avg
+    sql: total_current_assets
+  - name: total_property_plant_equipment
+    type: sum
+    sql: property_plant_equipment
+  - name: avg_property_plant_equipment
+    type: avg
+    sql: property_plant_equipment
+  - name: total_goodwill_and_intangibles
+    type: sum
+    sql: goodwill_and_intangibles
+  - name: avg_goodwill_and_intangibles
+    type: avg
+    sql: goodwill_and_intangibles
+  - name: total_total_assets
+    type: sum
+    sql: total_assets
+  - name: avg_total_assets
+    type: avg
+    sql: total_assets
+  - name: total_accounts_payable
+    type: sum
+    sql: accounts_payable
+  - name: avg_accounts_payable
+    type: avg
+    sql: accounts_payable
+  - name: total_short_term_debt
+    type: sum
+    sql: short_term_debt
+  - name: avg_short_term_debt
+    type: avg
+    sql: short_term_debt
+  - name: total_total_current_liabilities
+    type: sum
+    sql: total_current_liabilities
+  - name: avg_total_current_liabilities
+    type: avg
+    sql: total_current_liabilities
+  - name: total_long_term_debt
+    type: sum
+    sql: long_term_debt
+  - name: avg_long_term_debt
+    type: avg
+    sql: long_term_debt
+  - name: total_total_liabilities
+    type: sum
+    sql: total_liabilities
+  - name: avg_total_liabilities
+    type: avg
+    sql: total_liabilities
+  - name: total_retained_earnings
+    type: sum
+    sql: retained_earnings
+  - name: avg_retained_earnings
+    type: avg
+    sql: retained_earnings
+  - name: total_total_shareholders_equity
+    type: sum
+    sql: total_shareholders_equity
+  - name: avg_total_shareholders_equity
+    type: avg
+    sql: total_shareholders_equity
+  dimensions:
+  - name: id
+    type: string
+    sql: id
+    primary_key: true
+  - name: tenant_id
+    type: string
+    sql: tenant_id
+  - name: sys_document_id
+    type: string
+    sql: sys_document_id
+  - name: cash_and_equivalents
+    type: number
+    sql: cash_and_equivalents
+  - name: accounts_receivable
+    type: number
+    sql: accounts_receivable
+  - name: inventory
+    type: number
+    sql: inventory
+  - name: total_current_assets
+    type: number
+    sql: total_current_assets
+  - name: property_plant_equipment
+    type: number
+    sql: property_plant_equipment
+  - name: goodwill_and_intangibles
+    type: number
+    sql: goodwill_and_intangibles
+  - name: total_assets
+    type: number
+    sql: total_assets
+  - name: accounts_payable
+    type: number
+    sql: accounts_payable
+  - name: short_term_debt
+    type: number
+    sql: short_term_debt
+  - name: total_current_liabilities
+    type: number
+    sql: total_current_liabilities
+  - name: long_term_debt
+    type: number
+    sql: long_term_debt
+  - name: total_liabilities
+    type: number
+    sql: total_liabilities
+  - name: retained_earnings
+    type: number
+    sql: retained_earnings
+  - name: total_shareholders_equity
+    type: number
+    sql: total_shareholders_equity
+  - name: additional_metadata
+    type: string
+    sql: CAST(additional_metadata AS TEXT)

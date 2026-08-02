@@ -1,0 +1,110 @@
+cubes:
+- name: ViewBankStatementHeaders
+  sql: SELECT * FROM view_bank_statement_headers
+  measures:
+  - name: count
+    type: count
+  - name: total_opening_balance
+    type: sum
+    sql: opening_balance
+  - name: avg_opening_balance
+    type: avg
+    sql: opening_balance
+  - name: total_closing_balance
+    type: sum
+    sql: closing_balance
+  - name: avg_closing_balance
+    type: avg
+    sql: closing_balance
+  - name: total_total_deposits
+    type: sum
+    sql: total_deposits
+  - name: avg_total_deposits
+    type: avg
+    sql: total_deposits
+  - name: total_total_withdrawals
+    type: sum
+    sql: total_withdrawals
+  - name: avg_total_withdrawals
+    type: avg
+    sql: total_withdrawals
+  - name: total_total_fees
+    type: sum
+    sql: total_fees
+  - name: avg_total_fees
+    type: avg
+    sql: total_fees
+  - name: total_total_interest
+    type: sum
+    sql: total_interest
+  - name: avg_total_interest
+    type: avg
+    sql: total_interest
+  dimensions:
+  - name: id
+    type: string
+    sql: id
+    primary_key: true
+  - name: tenant_id
+    type: string
+    sql: tenant_id
+  - name: sys_document_id
+    type: string
+    sql: sys_document_id
+  - name: account_number
+    type: string
+    sql: account_number
+  - name: routing_number
+    type: string
+    sql: routing_number
+  - name: iban
+    type: string
+    sql: iban
+  - name: swift_bic
+    type: string
+    sql: swift_bic
+  - name: bank_name
+    type: string
+    sql: bank_name
+  - name: bank_address
+    type: string
+    sql: bank_address
+  - name: statement_period_start
+    type: time
+    sql: statement_period_start
+  - name: statement_period_end
+    type: time
+    sql: statement_period_end
+  - name: statement_date
+    type: time
+    sql: statement_date
+  - name: opening_balance
+    type: number
+    sql: opening_balance
+  - name: closing_balance
+    type: number
+    sql: closing_balance
+  - name: total_deposits
+    type: number
+    sql: total_deposits
+  - name: total_withdrawals
+    type: number
+    sql: total_withdrawals
+  - name: total_fees
+    type: number
+    sql: total_fees
+  - name: total_interest
+    type: number
+    sql: total_interest
+  - name: account_holder_name
+    type: string
+    sql: account_holder_name
+  - name: account_holder_address
+    type: string
+    sql: account_holder_address
+  - name: currency
+    type: string
+    sql: currency
+  - name: additional_metadata
+    type: string
+    sql: CAST(additional_metadata AS TEXT)

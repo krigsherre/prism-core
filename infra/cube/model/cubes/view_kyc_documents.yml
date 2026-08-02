@@ -1,0 +1,71 @@
+cubes:
+- name: ViewKycDocuments
+  sql: SELECT * FROM view_kyc_documents
+  measures:
+  - name: count
+    type: count
+  dimensions:
+  - name: id
+    type: string
+    sql: id
+    primary_key: true
+  - name: tenant_id
+    type: string
+    sql: tenant_id
+  - name: sys_document_id
+    type: string
+    sql: sys_document_id
+  - name: document_id
+    type: string
+    sql: document_id
+  - name: document_type
+    type: string
+    sql: document_type
+  - name: issuing_country
+    type: string
+    sql: issuing_country
+  - name: issuing_authority
+    type: string
+    sql: issuing_authority
+  - name: full_name
+    type: string
+    sql: full_name
+  - name: first_name
+    type: string
+    sql: first_name
+  - name: last_name
+    type: string
+    sql: last_name
+  - name: date_of_birth
+    type: time
+    sql: date_of_birth
+  - name: place_of_birth
+    type: string
+    sql: place_of_birth
+  - name: nationality
+    type: string
+    sql: nationality
+  - name: gender
+    type: string
+    sql: gender
+  - name: document_number
+    type: string
+    sql: document_number
+  - name: personal_number
+    type: string
+    sql: personal_number
+  - name: issue_date
+    type: time
+    sql: issue_date
+  - name: expiry_date
+    type: time
+    sql: expiry_date
+  - name: address
+    type: string
+    sql: address
+  - name: verification_status
+    type: string
+    sql: verification_status
+  - name: additional_metadata
+    type: string
+    sql: CAST(additional_metadata AS TEXT)

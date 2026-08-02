@@ -1,0 +1,101 @@
+cubes:
+- name: ViewInsurancePolicies
+  sql: SELECT * FROM view_insurance_policies
+  measures:
+  - name: count
+    type: count
+  - name: total_premium_amount
+    type: sum
+    sql: premium_amount
+  - name: avg_premium_amount
+    type: avg
+    sql: premium_amount
+  - name: total_tax_amount
+    type: sum
+    sql: tax_amount
+  - name: avg_tax_amount
+    type: avg
+    sql: tax_amount
+  - name: total_total_amount
+    type: sum
+    sql: total_amount
+  - name: avg_total_amount
+    type: avg
+    sql: total_amount
+  - name: total_coverage_limit
+    type: sum
+    sql: coverage_limit
+  - name: avg_coverage_limit
+    type: avg
+    sql: coverage_limit
+  - name: total_deductible
+    type: sum
+    sql: deductible
+  - name: avg_deductible
+    type: avg
+    sql: deductible
+  dimensions:
+  - name: id
+    type: string
+    sql: id
+    primary_key: true
+  - name: tenant_id
+    type: string
+    sql: tenant_id
+  - name: sys_document_id
+    type: string
+    sql: sys_document_id
+  - name: policy_number
+    type: string
+    sql: policy_number
+  - name: policyholder_name
+    type: string
+    sql: policyholder_name
+  - name: policyholder_address
+    type: string
+    sql: policyholder_address
+  - name: insurance_company
+    type: string
+    sql: insurance_company
+  - name: insurance_company_address
+    type: string
+    sql: insurance_company_address
+  - name: broker_name
+    type: string
+    sql: broker_name
+  - name: policy_type
+    type: string
+    sql: policy_type
+  - name: start_date
+    type: time
+    sql: start_date
+  - name: end_date
+    type: time
+    sql: end_date
+  - name: premium_amount
+    type: number
+    sql: premium_amount
+  - name: tax_amount
+    type: number
+    sql: tax_amount
+  - name: total_amount
+    type: number
+    sql: total_amount
+  - name: currency
+    type: string
+    sql: currency
+  - name: coverage_limit
+    type: number
+    sql: coverage_limit
+  - name: deductible
+    type: number
+    sql: deductible
+  - name: payment_frequency
+    type: string
+    sql: payment_frequency
+  - name: status
+    type: string
+    sql: status
+  - name: additional_metadata
+    type: string
+    sql: CAST(additional_metadata AS TEXT)

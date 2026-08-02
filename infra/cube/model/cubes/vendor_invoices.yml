@@ -1,0 +1,41 @@
+cubes:
+  - name: VendorInvoices
+    sql: >
+      SELECT * FROM public.vendor_invoices
+
+    measures:
+      - name: total_line_amount
+        type: sum
+        sql: line_amount
+        description: "Total invoice amounts across all line items"
+
+      - name: invoice_count
+        type: count
+        description: "Total number of invoices"
+
+    dimensions:
+      - name: id
+        type: string
+        sql: id
+        primary_key: true
+
+      - name: vendor_name
+        type: string
+        sql: vendor_name
+
+      - name: region
+        type: string
+        sql: region
+
+      - name: service_type
+        type: string
+        sql: service_type
+
+      - name: billing_period
+        type: string
+        sql: billing_period
+
+      - name: tenant_id
+        type: string
+        sql: tenant_id
+        description: "Tenant identifier for Row-Level Security"

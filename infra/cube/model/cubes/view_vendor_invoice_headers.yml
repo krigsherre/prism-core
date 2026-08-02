@@ -1,0 +1,134 @@
+cubes:
+- name: ViewVendorInvoiceHeaders
+  sql: SELECT * FROM view_vendor_invoice_headers
+  measures:
+  - name: count
+    type: count
+  - name: total_subtotal_amount
+    type: sum
+    sql: subtotal_amount
+  - name: avg_subtotal_amount
+    type: avg
+    sql: subtotal_amount
+  - name: total_tax_amount
+    type: sum
+    sql: tax_amount
+  - name: avg_tax_amount
+    type: avg
+    sql: tax_amount
+  - name: total_discount_amount
+    type: sum
+    sql: discount_amount
+  - name: avg_discount_amount
+    type: avg
+    sql: discount_amount
+  - name: total_shipping_amount
+    type: sum
+    sql: shipping_amount
+  - name: avg_shipping_amount
+    type: avg
+    sql: shipping_amount
+  - name: total_total_amount
+    type: sum
+    sql: total_amount
+  - name: avg_total_amount
+    type: avg
+    sql: total_amount
+  - name: total_amount_due
+    type: sum
+    sql: amount_due
+  - name: avg_amount_due
+    type: avg
+    sql: amount_due
+  - name: total_amount_paid
+    type: sum
+    sql: amount_paid
+  - name: avg_amount_paid
+    type: avg
+    sql: amount_paid
+  dimensions:
+  - name: id
+    type: string
+    sql: id
+    primary_key: true
+  - name: tenant_id
+    type: string
+    sql: tenant_id
+  - name: sys_document_id
+    type: string
+    sql: sys_document_id
+  - name: invoice_id
+    type: string
+    sql: invoice_id
+  - name: invoice_number
+    type: string
+    sql: invoice_number
+  - name: vendor_name
+    type: string
+    sql: vendor_name
+  - name: vendor_address
+    type: string
+    sql: vendor_address
+  - name: vendor_tax_id
+    type: string
+    sql: vendor_tax_id
+  - name: vendor_email
+    type: string
+    sql: vendor_email
+  - name: vendor_phone
+    type: string
+    sql: vendor_phone
+  - name: buyer_name
+    type: string
+    sql: buyer_name
+  - name: buyer_address
+    type: string
+    sql: buyer_address
+  - name: buyer_tax_id
+    type: string
+    sql: buyer_tax_id
+  - name: invoice_date
+    type: time
+    sql: invoice_date
+  - name: due_date
+    type: time
+    sql: due_date
+  - name: delivery_date
+    type: time
+    sql: delivery_date
+  - name: subtotal_amount
+    type: number
+    sql: subtotal_amount
+  - name: tax_amount
+    type: number
+    sql: tax_amount
+  - name: discount_amount
+    type: number
+    sql: discount_amount
+  - name: shipping_amount
+    type: number
+    sql: shipping_amount
+  - name: total_amount
+    type: number
+    sql: total_amount
+  - name: amount_due
+    type: number
+    sql: amount_due
+  - name: amount_paid
+    type: number
+    sql: amount_paid
+  - name: currency
+    type: string
+    sql: currency
+  - name: payment_terms
+    type: string
+    sql: payment_terms
+  - name: purchase_order_number
+    type: string
+    sql: purchase_order_number
+  - name: remittance_address
+    type: string
+    sql: remittance_address
+  - name: additional_metadata
+    type: string
+    sql: CAST(additional_metadata AS TEXT)

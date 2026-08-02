@@ -1,0 +1,83 @@
+cubes:
+- name: ViewInvoiceLineItems
+  sql: SELECT * FROM view_invoice_line_items
+  measures:
+  - name: count
+    type: count
+  - name: total_quantity
+    type: sum
+    sql: quantity
+  - name: avg_quantity
+    type: avg
+    sql: quantity
+  - name: total_unit_price
+    type: sum
+    sql: unit_price
+  - name: avg_unit_price
+    type: avg
+    sql: unit_price
+  - name: total_tax_rate
+    type: sum
+    sql: tax_rate
+  - name: avg_tax_rate
+    type: avg
+    sql: tax_rate
+  - name: total_tax_amount
+    type: sum
+    sql: tax_amount
+  - name: avg_tax_amount
+    type: avg
+    sql: tax_amount
+  - name: total_discount_amount
+    type: sum
+    sql: discount_amount
+  - name: avg_discount_amount
+    type: avg
+    sql: discount_amount
+  - name: total_total_amount
+    type: sum
+    sql: total_amount
+  - name: avg_total_amount
+    type: avg
+    sql: total_amount
+  dimensions:
+  - name: id
+    type: string
+    sql: id
+    primary_key: true
+  - name: tenant_id
+    type: string
+    sql: tenant_id
+  - name: sys_document_id
+    type: string
+    sql: sys_document_id
+  - name: item_code
+    type: string
+    sql: item_code
+  - name: description
+    type: string
+    sql: description
+  - name: quantity
+    type: number
+    sql: quantity
+  - name: unit_of_measure
+    type: string
+    sql: unit_of_measure
+  - name: unit_price
+    type: number
+    sql: unit_price
+  - name: tax_rate
+    type: number
+    sql: tax_rate
+  - name: tax_amount
+    type: number
+    sql: tax_amount
+  - name: discount_amount
+    type: number
+    sql: discount_amount
+  - name: total_amount
+    type: number
+    sql: total_amount
+  - name: additional_metadata
+    type: string
+    sql: CAST(additional_metadata AS TEXT)

@@ -1,0 +1,101 @@
+cubes:
+- name: ViewReceiptHeaders
+  sql: SELECT * FROM view_receipt_headers
+  measures:
+  - name: count
+    type: count
+  - name: total_subtotal_amount
+    type: sum
+    sql: subtotal_amount
+  - name: avg_subtotal_amount
+    type: avg
+    sql: subtotal_amount
+  - name: total_tax_amount
+    type: sum
+    sql: tax_amount
+  - name: avg_tax_amount
+    type: avg
+    sql: tax_amount
+  - name: total_tip_amount
+    type: sum
+    sql: tip_amount
+  - name: avg_tip_amount
+    type: avg
+    sql: tip_amount
+  - name: total_total_amount
+    type: sum
+    sql: total_amount
+  - name: avg_total_amount
+    type: avg
+    sql: total_amount
+  dimensions:
+  - name: id
+    type: string
+    sql: id
+    primary_key: true
+  - name: tenant_id
+    type: string
+    sql: tenant_id
+  - name: sys_document_id
+    type: string
+    sql: sys_document_id
+  - name: receipt_id
+    type: string
+    sql: receipt_id
+  - name: merchant_name
+    type: string
+    sql: merchant_name
+  - name: merchant_address
+    type: string
+    sql: merchant_address
+  - name: merchant_phone
+    type: string
+    sql: merchant_phone
+  - name: merchant_tax_id
+    type: string
+    sql: merchant_tax_id
+  - name: store_number
+    type: string
+    sql: store_number
+  - name: register_number
+    type: string
+    sql: register_number
+  - name: cashier_name
+    type: string
+    sql: cashier_name
+  - name: transaction_date
+    type: time
+    sql: transaction_date
+  - name: transaction_time
+    type: string
+    sql: transaction_time
+  - name: subtotal_amount
+    type: number
+    sql: subtotal_amount
+  - name: tax_amount
+    type: number
+    sql: tax_amount
+  - name: tip_amount
+    type: number
+    sql: tip_amount
+  - name: total_amount
+    type: number
+    sql: total_amount
+  - name: payment_method
+    type: string
+    sql: payment_method
+  - name: card_network
+    type: string
+    sql: card_network
+  - name: card_last_four
+    type: string
+    sql: card_last_four
+  - name: auth_code
+    type: string
+    sql: auth_code
+  - name: currency
+    type: string
+    sql: currency
+  - name: additional_metadata
+    type: string
+    sql: CAST(additional_metadata AS TEXT)
