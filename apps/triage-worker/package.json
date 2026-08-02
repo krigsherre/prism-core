@@ -1,0 +1,10 @@
+{
+  "name": "triage-worker",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "build": "go build -o bin/triage-worker ./cmd/worker",
+    "lint": "go vet ./...",
+    "dev": "go run ./cmd/worker"
+  }
+}
