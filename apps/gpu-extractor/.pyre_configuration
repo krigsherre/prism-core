@@ -1,0 +1,9 @@
+{
+  "source_directories": [
+    ".",
+    "src"
+  ],
+  "search_path": [
+    "../../packages/contracts/gen/python"
+  ]
+}
