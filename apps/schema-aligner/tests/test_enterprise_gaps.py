@@ -28,14 +28,11 @@ def test_extract_entity_identifiers():
 
 def test_fx_converter():
     """Verify multi-currency conversion."""
-    # Convert 100 USD to INR (1 USD = ~83.5 INR)
     inr_amt = convert_currency(100.0, "USD", "INR")
     assert inr_amt == 8350.0
 
-    # Convert 8350 INR to USD
     usd_amt = convert_currency(8350.0, "INR", "USD")
     assert usd_amt == 100.0
 
-    # Cross rate EUR to USD
     rate = get_fx_rate("EUR", "USD")
     assert rate > 0.0

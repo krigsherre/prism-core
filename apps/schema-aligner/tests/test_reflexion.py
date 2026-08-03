@@ -1,7 +1,6 @@
 """Tests for Reflexion classification and repair ladder."""
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
-from types import SimpleNamespace
+from unittest.mock import  patch
 
 from core.reflexion import (
     FailureClass,
@@ -119,7 +118,7 @@ async def test_align_with_reflexion_permanent_skips_budget():
             )
 
     assert status == "FAILED"
-    assert calls["n"] == 1  # permanent — no further burns
+    assert calls["n"] == 1 
     assert meta["exhausted"] is True
     assert meta["failure_class"] == FailureClass.PERMANENT.value
 

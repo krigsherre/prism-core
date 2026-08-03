@@ -5,8 +5,9 @@ from core.hitl_review import generate_hitl_review, _heuristic_fallback
 @pytest.mark.asyncio
 async def test_generate_hitl_review_fallback_without_api_key(monkeypatch):
     monkeypatch.setenv("ANTHROPIC_API_KEY", "")
-    # Force LLM failure path by breaking the client
-    monkeypatch.setattr("core.hitl_review._client", lambda: (_ for _ in ()).throw(RuntimeError("no llm")))
+    # Force LLM failure path by breaking LLMFactory
+    from core.llm_factory import LLMFactory
+    monkeypatch.setattr(LLMFactory, "get_structured_llm", lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("no llm")))
 
     review = await generate_hitl_review(
         target_table="subsidiaries",

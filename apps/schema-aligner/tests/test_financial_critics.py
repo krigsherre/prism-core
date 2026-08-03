@@ -228,7 +228,6 @@ def test_grounding_soft_fail(critic):
     soft = [r for r in results if not r.ok and r.severity == Severity.SOFT]
     assert soft
     assert any("grounding" in r.rule_id for r in soft)
-    # Soft does not flip legacy verify() to False
     ok, _ = critic.verify(
         "standardized_balance_sheet",
         {

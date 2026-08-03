@@ -79,8 +79,7 @@ def test_cross_bundle():
             "invoice_line_items": [{"total_amount": 100}],
         }
     )
-    assert results == [] or all(r.ok for r in results) or True  # matching OK
-    # exact match → no failures
+    assert results == [] or all(r.ok for r in results) or True
     assert not [r for r in results if not r.ok]
 
 

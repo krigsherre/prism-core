@@ -191,7 +191,6 @@ async def test_raw_table_dom_anomaly_publishing(mock_strategy, mock_consumer_cla
             continue
         raw = c.kwargs.get("value")
         if raw is None:
-            # positional: send_and_wait(topic, value) unlikely; prefer kwargs
             for a in c.args[1:]:
                 if isinstance(a, (bytes, str)):
                     raw = a
