@@ -34,7 +34,6 @@ def test_normalize_otsl():
 
 
 def test_normalize_malformed_json_otsl_wrapper():
-    # Mimics the brittle single-key dict the user reported
     broken = {
         "No.<fcel>Name<fcel>Country<nl><fcel>1<fcel>Acme<fcel>India<ecel><nl>": "2<fcel>Beta<fcel>US<ecel><nl>"
     }

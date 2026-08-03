@@ -42,7 +42,6 @@ class PyMuPDFAdapter(AbstractMLExtractor):
         return text.strip()
 
     async def extract_async(self, page: Any, bbox: List[float]) -> str:
-        # PyMuPDF is fast CPU bound, no network IO, so we can just call it
         return self.extract(page, bbox)
 
 

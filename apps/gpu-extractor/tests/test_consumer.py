@@ -89,7 +89,6 @@ async def test_kafka_consumer_orchestrator_mode(mock_os, mock_tempfile, mock_pro
         assert call_args[0][0] == "gpu_processing_queue"
         assert call_args[1]["key"] == b"tenant-123"
 
-        # Fan-out must stamp chunk_index / chunk_total for cross-chunk assembly
         sub = events_pb2.IngestEvent()
         sub.ParseFromString(call_args[0][1])
         assert sub.metadata["chunk_index"] == "0"

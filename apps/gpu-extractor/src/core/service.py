@@ -111,16 +111,12 @@ class ExtractionService:
 
         async def process_page(page_num: int):
             def _heavy_cpu_work():
-                # Open isolated doc for this thread to ensure thread safety
                 import base64
                 import io
                 with fitz.open(doc.name) as local_doc:
                     p = local_doc.load_page(page_num)
                     px = p.get_pixmap(dpi=150)
-                    # Convert to PIL Image
                     img = Image.frombytes("RGB", (px.width, px.height), px.samples)
-                    
-                    # Create base64 for docling
                     buffered = io.BytesIO()
                     img.save(buffered, format="JPEG", quality=90)
                     b64_image = base64.b64encode(buffered.getvalue()).decode("utf-8")
@@ -145,7 +141,6 @@ class ExtractionService:
         pages_data.sort(key=lambda x: x[0])
 
         for page_num, page_nodes, page_promises in pages_data:
-            # Shift promise indices to match the global promises list
             promise_offset = len(promises)
             for meta in page_nodes:
                 if "promise_idx" in meta:
