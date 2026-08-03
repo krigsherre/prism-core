@@ -31,14 +31,11 @@ Your job is to read the user's intent and synthesize a cohesive, highly accurate
 
 PROVENANCE & PROXY GUIDELINES:
 - {doc_context}
-- EXECUTIVE TONE MANDATE: Be confident, direct, and executive. NEVER write defensive disclaimers, "Data Quality Notice", "Data Extraction Status Summary", or "Data Limitation Notice" sections. NEVER complain about unpopulated dictionary keys or pipeline status.
-- HYBRID RAG MANDATE: If SQL tabular columns contain null values for numeric metrics, pull any quantitative numbers directly from the Semantic Excerpts (Vector Database text chunks) and synthesize them seamlessly into clean markdown tables with page citations.
-- Focus 100% on synthesizing and presenting the valuable facts, metrics, section schedules, and disclosures that ARE retrieved in clear markdown.
-- When retrieved RAG data is present, synthesize all provided facts accurately. When SQL exact-row data conflicts with vector text, prefer the SQL/Postgres extracted values for numbers.
-- PROVENANCE MANDATE: ALWAYS mention the source document name, company, and page number when reporting tabular metrics (e.g. "According to **Apple Inc. FY2024 10-K** (Page 42)...").
-- PROXY TRANSPARENCY: If a metric was calculated or derived from adjacent fields (e.g. Subtotal = Total - Tax), explicitly disclose the proxy formula in your answer (e.g. "Subtotal: $900 (derived from Total $1,000 minus Tax $100)").
-- CITATIONS: When provenance references are provided, include markdown citation links using the exact href format given.
-- If the retrieved RAG data is empty or insufficient, OR if the user's question is a general query, concept explanation, greeting, or financial definition (e.g., "What is Interest Coverage Ratio?", "Hello", "How to calculate EBITDA"), answer the question directly, thoroughly, and helpfully using your general knowledge.
+- STRICT NO-DISCLAIMER MANDATE: Be confident, direct, and executive. NEVER write disclaimers like "data contains null values", "unable to calculate at this time", "all line items null", or "extraction returned empty numeric fields".
+- STRICT NO-TROUBLESHOOTING MANDATE: NEVER output "Recommended Next Steps", "Verify Document Ingestion", "Check OCR/extraction pipeline", "Request manual review", or pipeline escalation messages. Focus 100% on executive financial metrics, calculations, ratios, and factual insights.
+- STRICT NO-PROVENANCE-SECTION MANDATE: NEVER write or append a manual "Source Provenance", "References", or "Page X" list section at the bottom of your response. The chat UI automatically renders interactive provenance buttons from system metadata.
+- MANDATORY METRIC & PROXY CALCULATIONS: Showcase all financial metrics, balance sheets, income statements, and cash flows directly. If a requested metric (e.g. EBIT, Interest Expense, Cash, Short-Term Debt) is not explicitly populated in the SQL columns, derive proxy values from adjacent same-row fields (e.g. EBIT = Operating Income, or Gross Profit minus Opex, or Total Revenue minus COGS minus Opex) OR extract quantitative figures directly from the Semantic Excerpts (Vector text chunks).
+- Always compute and present the requested ratios and financial analysis in clean markdown tables. Explicitly disclose proxy methods in footnote annotations (e.g., "*EBIT derived from Operating Income $114,301M").
 - Do NOT mention internal database table names (e.g. "view_standardized_balance_sheet"). Render clean financial tables with professional column titles.
 """
     
@@ -57,17 +54,42 @@ PROVENANCE & PROXY GUIDELINES:
     if vector_data:
         prompt_context += f"--- Semantic Excerpts ---\n{vector_data}\n\n"
 
-    citation_lines = []
-    for i, ref in enumerate(references, start=1):
+    seen_citations = set()
+    deduped_references = []
+    for ref in references:
+        if not isinstance(ref, dict):
+            continue
         doc_id = ref.get("doc_id") or ref.get("document_id") or "document"
-        page = ref.get("source_page") or 1
-        bbox = ref.get("source_bbox")
+        raw_page = ref.get("source_page") or ref.get("page") or ref.get("page_number")
+        try:
+            page = int(raw_page) if raw_page is not None else 1
+        except (ValueError, TypeError):
+            page = 1
+            
+        cit_key = (doc_id, page)
+        if cit_key in seen_citations:
+            continue
+        seen_citations.add(cit_key)
+        deduped_references.append({
+            "doc_id": doc_id,
+            "document_id": doc_id,
+            "source_page": page,
+            "page": page,
+            "source_bbox": ref.get("source_bbox") or ref.get("bbox") or []
+        })
+
+    citation_lines = []
+    for idx, ref in enumerate(deduped_references, start=1):
+        doc_id = ref["doc_id"]
+        page = ref["source_page"]
+        bbox = ref["source_bbox"]
         if isinstance(bbox, (list, tuple)) and len(bbox) >= 4 and any(v != 0 for v in bbox[:4]):
             bbox_str = ",".join(str(v) for v in bbox[:4])
             href = f"{doc_id}#page={page}&bbox={bbox_str}"
         else:
             href = f"{doc_id}#page={page}"
-        citation_lines.append(f"[{i}]({href}) (page {page})")
+        citation_lines.append(f"[{idx}]({href}) (page {page})")
+
     if citation_lines:
         prompt_context += "--- Provenance Citations ---\n" + "\n".join(citation_lines) + "\n\n"
         
@@ -76,4 +98,7 @@ PROVENANCE & PROXY GUIDELINES:
         HumanMessage(content=prompt_context)
     ])
     
-    return {"final_answer": response.content}
+    return {
+        "final_answer": response.content,
+        "references": deduped_references
+    }

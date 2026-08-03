@@ -72,17 +72,31 @@ async def execute_vector_node(state: InteractionState) -> dict:
         
         references = []
         context_texts = []
+        seen = set()
         for c in chunks:
             if not isinstance(c, dict):
                 continue
             text = c.get("text") or ""
             if text:
                 context_texts.append(text)
-            references.append({
-                "doc_id": c.get("document_id"),
-                "source_page": c.get("source_page"),
-                "source_bbox": c.get("source_bbox")
-            })
+            doc_id = c.get("document_id") or c.get("doc_id")
+            raw_page = c.get("source_page") or c.get("page_number") or c.get("page")
+            try:
+                page = int(raw_page) if raw_page is not None else 1
+            except (ValueError, TypeError):
+                page = 1
+            bbox = c.get("source_bbox") or c.get("bbox") or []
+            if doc_id:
+                key = (doc_id, page)
+                if key not in seen:
+                    seen.add(key)
+                    references.append({
+                        "doc_id": doc_id,
+                        "document_id": doc_id,
+                        "source_page": page,
+                        "page": page,
+                        "source_bbox": bbox
+                    })
             
         context_str = "\n\n---\n\n".join(context_texts) if context_texts else "(no matching chunks)"
         

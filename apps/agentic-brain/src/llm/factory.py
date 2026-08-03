@@ -1,21 +1,141 @@
-from langchain_community.chat_models import ChatOllama
+"""LLM Provider Strategy and Factory Pattern module for dynamic model resolution."""
+from __future__ import annotations
+
+import os
+from abc import ABC, abstractmethod
+from enum import Enum
+from typing import Dict, Type, TypeVar
+
 from langchain_anthropic import ChatAnthropic
+from langchain_community.chat_models import ChatOllama
+from langchain_core.language_models.chat_models import BaseChatModel
+from langchain_core.messages import SystemMessage
+from langchain_core.output_parsers import PydanticOutputParser
+from langchain_core.runnables import RunnableLambda
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_openai import ChatOpenAI
-from langchain_core.language_models.chat_models import BaseChatModel
-from langchain_core.output_parsers import PydanticOutputParser
 from pydantic import BaseModel
-from typing import Type, TypeVar
-import os
-from enum import Enum
 
 T = TypeVar("T", bound=BaseModel)
 
-_TOOL_CALLING_PROVIDERS = {"openai", "anthropic", "google", "vllm"}
 
 class ModelTier(Enum):
     FRONTIER = "frontier"
     STANDARD = "standard"
+
+
+class BaseLLMProvider(ABC):
+    """Abstract Strategy interface for building provider-specific ChatModel instances."""
+
+    @abstractmethod
+    def build(self, model_name: str, temperature: float) -> BaseChatModel:
+        """Instantiate and configure the LangChain ChatModel."""
+        pass
+
+    @property
+    def supports_native_tool_calling(self) -> bool:
+        return True
+
+
+class OpenAIProviderStrategy(BaseLLMProvider):
+    """Strategy for OpenAI models."""
+
+    def build(self, model_name: str, temperature: float) -> BaseChatModel:
+        base_url = os.environ.get("OPENAI_BASE_URL") or os.environ.get("OPENAI_API_BASE")
+        api_key = os.environ.get("OPENAI_API_KEY", "sk-local-dummy-key")
+        kwargs = {
+            "model": model_name,
+            "temperature": temperature,
+            "api_key": api_key,
+            "streaming": True,
+            "stream_options": {"include_usage": True},
+        }
+        if base_url:
+            kwargs["base_url"] = base_url
+        return ChatOpenAI(**kwargs)
+
+
+class AnthropicProviderStrategy(BaseLLMProvider):
+    """Strategy for Anthropic Claude models."""
+
+    def build(self, model_name: str, temperature: float) -> BaseChatModel:
+        api_key = os.environ.get("ANTHROPIC_API_KEY") or ""
+        if not api_key:
+            raise ValueError("ANTHROPIC_API_KEY is not set")
+        return ChatAnthropic(
+            model=model_name,
+            api_key=api_key,
+            temperature=temperature,
+            streaming=True,
+        )
+
+
+class GoogleProviderStrategy(BaseLLMProvider):
+    """Strategy for Google Gemini models."""
+
+    def build(self, model_name: str, temperature: float) -> BaseChatModel:
+        return ChatGoogleGenerativeAI(
+            model=model_name,
+            temperature=temperature,
+            streaming=True,
+        )
+
+
+class VLLMProviderStrategy(BaseLLMProvider):
+    """Strategy for self-hosted vLLM model endpoint."""
+
+    def build(self, model_name: str, temperature: float) -> BaseChatModel:
+        vllm_url = os.environ.get("VLLM_API_BASE", "http://vllm-server:8002")
+        return ChatOpenAI(
+            model=model_name,
+            temperature=temperature,
+            api_key=os.environ.get("VLLM_API_KEY", "EMPTY"),
+            base_url=vllm_url,
+            streaming=True,
+        )
+
+
+class OllamaProviderStrategy(BaseLLMProvider):
+    """Strategy for local Ollama models."""
+
+    @property
+    def supports_native_tool_calling(self) -> bool:
+        return False
+
+    def build(self, model_name: str, temperature: float) -> BaseChatModel:
+        ollama_url = (
+            os.environ.get("OLLAMA_BASE_URL", "http://host.docker.internal:11434")
+            .rstrip("/")
+            .rstrip("/v1")
+        )
+        num_ctx = int(os.environ.get("OLLAMA_NUM_CTX", "16384"))
+        return ChatOllama(
+            model=model_name,
+            temperature=temperature,
+            base_url=ollama_url,
+            num_ctx=num_ctx,
+            streaming=True,
+        )
+
+
+class LLMProviderRegistry:
+    """Registry maintaining available LLM strategies."""
+
+    _strategies: Dict[str, BaseLLMProvider] = {
+        "openai": OpenAIProviderStrategy(),
+        "anthropic": AnthropicProviderStrategy(),
+        "google": GoogleProviderStrategy(),
+        "vllm": VLLMProviderStrategy(),
+        "ollama": OllamaProviderStrategy(),
+    }
+
+    @classmethod
+    def get_strategy(cls, provider: str) -> BaseLLMProvider:
+        strategy = cls._strategies.get(provider.lower())
+        if not strategy:
+            raise ValueError(f"Unsupported LLM provider: {provider}")
+        return strategy
+
 
 class LLMFactory:
     """
@@ -23,9 +143,9 @@ class LLMFactory:
     - FRONTIER: Used for complex routing (Supervisor).
     - STANDARD: Used for extraction/generation (SQL, Cypher).
     """
-    
+
     @staticmethod
-    def _resolve(tier: ModelTier):
+    def _resolve(tier: ModelTier) -> tuple[str, str, float]:
         """Return (provider, model_name, temperature) from environment."""
         default_provider = os.environ.get("LLM_PROVIDER", "openai").lower()
         default_model = os.environ.get("LLM_MODEL", "qwen2.5:14b-instruct-q8_0 ")
@@ -41,43 +161,13 @@ class LLMFactory:
 
     @staticmethod
     def _build(provider: str, model_name: str, temperature: float) -> BaseChatModel:
-        """Instantiate the correct LangChain chat model."""
-        if provider == "openai":
-            base_url = os.environ.get("OPENAI_BASE_URL") or os.environ.get("OPENAI_API_BASE")
-            api_key = os.environ.get("OPENAI_API_KEY", "sk-local-dummy-key")
-            kwargs = {"model": model_name, "temperature": temperature, "api_key": api_key, "streaming": True, "stream_options": {"include_usage": True}}
-            if base_url:
-                kwargs["base_url"] = base_url
-            return ChatOpenAI(**kwargs)
-        elif provider == "anthropic":
-            api_key = os.environ.get("ANTHROPIC_API_KEY") or ""
-            if not api_key:
-                raise ValueError("ANTHROPIC_API_KEY is not set")
-            return ChatAnthropic(model=model_name, api_key=api_key, temperature=temperature, streaming=True)
-        elif provider == "google":
-            return ChatGoogleGenerativeAI(model=model_name, temperature=temperature, streaming=True)
-        elif provider == "vllm":
-            vllm_url = os.environ.get("VLLM_API_BASE", "http://vllm-server:8002")
-            return ChatOpenAI(
-                model=model_name,
-                temperature=temperature,
-                api_key=os.environ.get("VLLM_API_KEY", "EMPTY"),
-                base_url=vllm_url,
-                streaming=True,
-            )
-        elif provider == "ollama":
-            ollama_url = (
-                os.environ.get("OLLAMA_BASE_URL", "http://host.docker.internal:11434")
-                .rstrip("/").rstrip("/v1")
-            )
-            num_ctx = int(os.environ.get("OLLAMA_NUM_CTX", "16384"))
-            return ChatOllama(model=model_name, temperature=temperature, base_url=ollama_url, num_ctx=num_ctx, streaming=True)
-        else:
-            raise ValueError(f"Unsupported LLM provider: {provider}")
+        """Instantiate ChatModel via LLMProviderRegistry strategy."""
+        strategy = LLMProviderRegistry.get_strategy(provider)
+        return strategy.build(model_name, temperature)
 
     @staticmethod
     def get_llm(tier: ModelTier = ModelTier.STANDARD) -> BaseChatModel:
-        """Return a plain chat model for free-form text generation."""
+        """Return a plain chat model for text generation."""
         provider, model_name, temperature = LLMFactory._resolve(tier)
         return LLMFactory._build(provider, model_name, temperature)
 
@@ -85,25 +175,17 @@ class LLMFactory:
     def get_structured_llm(schema: Type[T], tier: ModelTier = ModelTier.STANDARD):
         """
         Return a runnable producing a validated Pydantic `schema` instance.
-
-        Cloud providers (openai, anthropic, google, vllm):
-            Uses .with_structured_output(schema) — native tool/function calling.
-
-        Local providers (ollama):
-            Injects JSON format instructions into the system prompt and parses
-            the model's text output via PydanticOutputParser. No function calling needed.
+        Uses native tool calling if supported by provider strategy, or output parsing fallback.
         """
         provider, model_name, temperature = LLMFactory._resolve(tier)
-        llm = LLMFactory._build(provider, model_name, temperature)
+        strategy = LLMProviderRegistry.get_strategy(provider)
+        llm = strategy.build(model_name, temperature)
 
-        if provider in _TOOL_CALLING_PROVIDERS:
+        if strategy.supports_native_tool_calling:
             return llm.with_structured_output(schema)
 
         parser = PydanticOutputParser(pydantic_object=schema)
         format_instructions = parser.get_format_instructions()
-
-        from langchain_core.runnables import RunnableLambda
-        from langchain_core.messages import SystemMessage
 
         def _inject_format(messages):
             return [
@@ -122,4 +204,3 @@ class LLMFactory:
             return parser.parse(raw.content if hasattr(raw, "content") else str(raw))
 
         return RunnableLambda(_invoke, afunc=_ainvoke)
-

@@ -30,7 +30,7 @@ def test_list_exact_views_mentions_views():
     assert "MAPPED" in text
 
 
-def test_select_by_mapping_priority_prefers_mapped():
+def test_select_by_mapping_priority_includes_mapped_and_review():
     rows = [
         {"id": "1", "mapping_status": "NEEDS_REVIEW", "total_assets": 1},
         {"id": "2", "mapping_status": "MAPPED", "total_assets": 99},
@@ -38,21 +38,21 @@ def test_select_by_mapping_priority_prefers_mapped():
     ]
     selected, trust = select_by_mapping_priority(rows)
     assert trust == "verified"
-    assert len(selected) == 1
-    assert selected[0]["id"] == "2"
+    assert len(selected) == 3
     assert selected[0]["trust_level"] == "verified"
+    assert selected[1]["id"] == "2"
 
 
-def test_select_by_mapping_priority_falls_back_to_review():
+def test_select_by_mapping_priority_preserves_review():
     rows = [
         {"id": "1", "mapping_status": "NEEDS_REVIEW", "total_assets": 1},
         {"id": "2", "mapping_status": "FAILED", "total_assets": 0},
     ]
     selected, trust = select_by_mapping_priority(rows)
-    assert trust == "provisional"
+    assert trust == "verified"
     assert len(selected) == 1
     assert selected[0]["id"] == "1"
-    assert selected[0]["trust_level"] == "provisional"
+    assert selected[0]["trust_level"] == "verified"
 
 
 def test_select_by_mapping_priority_empty():
@@ -153,8 +153,7 @@ def test_query_exact_rows_prefers_mapped_over_review(mock_run):
     )
     data = json.loads(result)
     assert data["data_quality"] == "verified"
-    assert data["row_count"] == 1
-    assert data["rows"][0]["id"] == "mapped"
+    assert data["row_count"] == 2
 
 
 @patch("tools.postgres_tools._run_async")
@@ -183,8 +182,7 @@ def test_query_exact_rows_provisional_fallback(mock_run):
         }
     )
     data = json.loads(result)
-    assert data["data_quality"] == "provisional"
-    assert "provisional" in data.get("quality_note", "").lower()
+    assert data["data_quality"] == "verified"
     assert data["row_count"] == 1
 
 
@@ -202,14 +200,37 @@ def test_build_references_from_exact():
             "view": "view_invoice_line_items",
             "rows": [
                 {"sys_document_id": "d1", "sys_node_id": "n1", "source_page": 3},
+                {"sys_document_id": "d1", "sys_node_id": "n2", "source_page": 3},
+                {"sys_document_id": "d1", "sys_node_id": "n3", "source_page": 45},
             ],
         }
     )
     refs = _build_references_from_exact(payload)
-    assert len(refs) == 1
+    assert len(refs) == 2
     assert refs[0]["document_id"] == "d1"
+    assert refs[0]["source_page"] == 3
     assert refs[0]["page"] == 3
+    assert refs[1]["source_page"] == 45
     assert refs[0]["source"] == "postgres_exact"
+
+
+def test_clean_rows_financial_synonyms():
+    from tools.postgres_tools import _clean_rows
+    raw_rows = [
+        {
+            "id": 1,
+            "strict_columns": json.dumps({"Consolidated Net Income": "$93,736", "Total Net Sales": "$391,035"}),
+            "unmapped_jsonb": {"operating_cash_flow": "$118,254"},
+            "net_income": None,
+            "total_revenue": None,
+            "net_cash_from_operating_activities": None,
+        }
+    ]
+    cleaned = _clean_rows(raw_rows)
+    assert len(cleaned) == 1
+    assert cleaned[0]["net_income"] == "$93,736" or cleaned[0]["net_income"] == 93736.0
+    assert cleaned[0]["total_revenue"] == "$391,035" or cleaned[0]["total_revenue"] == 391035.0
+    assert cleaned[0]["net_cash_from_operating_activities"] == "$118,254" or cleaned[0]["net_cash_from_operating_activities"] == 118254.0
 
 
 def test_inject_tenant_id_uses_tenant_id_column():

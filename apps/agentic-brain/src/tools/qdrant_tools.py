@@ -1,11 +1,140 @@
+"""Vector search engine for Qdrant similarity and semantic reranking."""
+from __future__ import annotations
+
 import json
+from typing import Any, Dict, List, Optional
 import httpx
 import structlog
 from langchain_core.tools import tool
 from qdrant_client import AsyncQdrantClient, models
+
 from core.config import settings
 
 logger = structlog.get_logger(__name__)
+
+
+class VectorSearchEngine:
+    """Engine for performing embedding search and neural reranking over Qdrant collections."""
+
+    def __init__(
+        self,
+        embeddings_url: str = settings.embeddings_api_url,
+        reranker_url: str = settings.reranker_api_url,
+        qdrant_url: str = settings.qdrant_url,
+        collection_name: str = settings.qdrant_collection or "document_chunks",
+    ) -> None:
+        self.embeddings_url = embeddings_url
+        self.reranker_url = reranker_url
+        self.qdrant_url = qdrant_url
+        self.collection_name = collection_name
+
+    async def _generate_embeddings(self, query: str) -> List[float]:
+        embed_endpoint = self.embeddings_url.rstrip("/")
+        if not embed_endpoint.endswith("/embed"):
+            embed_endpoint = f"{embed_endpoint}/embed"
+
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            bge_query = f"Represent this sentence for searching relevant passages: {query[:1900]}"
+            response = await client.post(embed_endpoint, json={"inputs": bge_query})
+            response.raise_for_status()
+            data = response.json()
+            if isinstance(data, list) and len(data) > 0:
+                return data[0] if isinstance(data[0], list) else data
+            raise ValueError("Invalid embedding response")
+
+    async def _rerank(
+        self, query: str, points: List[Any], top_k: int = 5
+    ) -> List[Any]:
+        if not points:
+            return []
+        try:
+            texts_to_rerank = []
+            for point in points:
+                payload = getattr(point, "payload", None) or {}
+                text_content = payload.get(
+                    "parent_section_text", payload.get("content", payload.get("text", ""))
+                )
+                texts_to_rerank.append(text_content)
+
+            rerank_endpoint = self.reranker_url.rstrip("/")
+            if not rerank_endpoint.endswith("/rerank"):
+                rerank_endpoint = f"{rerank_endpoint}/rerank"
+
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                rerank_resp = await client.post(
+                    rerank_endpoint,
+                    json={"query": query, "texts": texts_to_rerank},
+                )
+                if rerank_resp.status_code == 200:
+                    rerank_data = rerank_resp.json()
+                    top_indices = [item["index"] for item in rerank_data[:top_k]]
+                    return [points[idx] for idx in top_indices]
+                else:
+                    logger.warning(
+                        "Reranker failed, falling back to original ordering",
+                        status=rerank_resp.status_code,
+                    )
+                    return points[:top_k]
+        except Exception as e:
+            logger.error("Reranking failed", error=str(e))
+            return points[:top_k]
+
+    async def query(
+        self, query: str, tenant_id: str, document_id: Optional[str] = None
+    ) -> str:
+        """Execute vector search query and rerank top results."""
+        logger.info("Querying Vector DB", query=query, tenant_id=tenant_id, document_id=document_id)
+        try:
+            vector = await self._generate_embeddings(query)
+            qdrant_client = AsyncQdrantClient(url=self.qdrant_url)
+
+            must_conditions = [
+                models.FieldCondition(
+                    key="tenant_id", match=models.MatchValue(value=tenant_id)
+                )
+            ]
+            if document_id:
+                must_conditions.append(
+                    models.FieldCondition(
+                        key="document_id", match=models.MatchValue(value=document_id)
+                    )
+                )
+
+            search_result = await qdrant_client.query_points(
+                collection_name=self.collection_name,
+                query=vector,
+                query_filter=models.Filter(must=must_conditions),
+                limit=50,
+                with_payload=True,
+            )
+
+            points = getattr(search_result, "points", None) or search_result or []
+            if not points:
+                return "No relevant documents found."
+
+            best_points = await self._rerank(query, points, top_k=5)
+
+            results = []
+            for point in best_points:
+                payload = getattr(point, "payload", None) or {}
+                results.append({
+                    "text": payload.get(
+                        "parent_section_text", payload.get("content", payload.get("text", ""))
+                    ),
+                    "source_page": payload.get("source_page", 1),
+                    "source_bbox": payload.get("source_bbox", []),
+                    "document_id": payload.get("document_id", ""),
+                    "score": getattr(point, "score", None),
+                })
+
+            return json.dumps(results, indent=2)
+        except Exception as e:
+            logger.error("Vector query failed", error=str(e))
+            return json.dumps({"error": f"Failed to query Vector DB: {e}", "results": []})
+
+
+vector_engine = VectorSearchEngine()
+
 
 @tool
 async def query_vector_db(query: str, tenant_id: str, document_id: str = None) -> str:
@@ -14,87 +143,4 @@ async def query_vector_db(query: str, tenant_id: str, document_id: str = None) -
     Use this for unstructured questions like "Find clauses about late fees".
     Returns the most relevant text chunks and their bounding boxes (for provenance).
     """
-    logger.info("Querying Vector DB", query=query, tenant_id=tenant_id, document_id=document_id)
-    
-    try:
-        embed_endpoint = settings.embeddings_api_url.rstrip("/")
-        if not embed_endpoint.endswith("/embed"):
-            embed_endpoint = f"{embed_endpoint}/embed"
-
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            bge_query = f"Represent this sentence for searching relevant passages: {query[:1900]}"
-            response = await client.post(
-                embed_endpoint,
-                json={"inputs": bge_query}
-            )
-            response.raise_for_status()
-            data = response.json()
-            if isinstance(data, list) and len(data) > 0:
-                vector = data[0] if isinstance(data[0], list) else data
-            else:
-                raise ValueError("Invalid embedding response")
-
-        collection = settings.qdrant_collection or "document_chunks"
-        qdrant_client = AsyncQdrantClient(url=settings.qdrant_url)
-        
-        must_conditions = [models.FieldCondition(key="tenant_id", match=models.MatchValue(value=tenant_id))]
-        if document_id:
-            must_conditions.append(models.FieldCondition(key="document_id", match=models.MatchValue(value=document_id)))
-
-        search_result = await qdrant_client.query_points(
-            collection_name=collection,
-            query=vector,
-            query_filter=models.Filter(must=must_conditions),
-            limit=50,
-            with_payload=True,
-        )
-        
-        points = getattr(search_result, "points", None) or search_result or []
-        if not points:
-            return "No relevant documents found."
-            
-        try:
-            texts_to_rerank = []
-            for point in points:
-                payload = getattr(point, "payload", None) or {}
-                text_content = payload.get("parent_section_text", payload.get("content", payload.get("text", "")))
-                texts_to_rerank.append(text_content)
-                
-            rerank_endpoint = settings.reranker_api_url.rstrip("/")
-            if not rerank_endpoint.endswith("/rerank"):
-                rerank_endpoint = f"{rerank_endpoint}/rerank"
-                
-            async with httpx.AsyncClient(timeout=10.0) as client:
-                rerank_resp = await client.post(
-                    rerank_endpoint,
-                    json={
-                        "query": query,
-                        "texts": texts_to_rerank
-                    }
-                )
-                if rerank_resp.status_code == 200:
-                    rerank_data = rerank_resp.json()
-                    top_indices = [item["index"] for item in rerank_data[:5]]
-                    best_points = [points[idx] for idx in top_indices]
-                else:
-                    logger.warning("Reranker failed, falling back to original ordering", status=rerank_resp.status_code)
-                    best_points = points[:5]
-        except Exception as e:
-            logger.error("Reranking failed", error=str(e))
-            best_points = points[:5]
-        
-        results = []
-        for point in best_points:
-            payload = getattr(point, "payload", None) or {}
-            results.append({
-                "text": payload.get("parent_section_text", payload.get("content", payload.get("text", ""))),
-                "source_page": payload.get("source_page", 1),
-                "source_bbox": payload.get("source_bbox", []),
-                "document_id": payload.get("document_id", ""),
-                "score": getattr(point, "score", None),
-            })
-            
-        return json.dumps(results, indent=2)
-    except Exception as e:
-        logger.error("Vector query failed", error=str(e))
-        return json.dumps({"error": f"Failed to query Vector DB: {e}", "results": []})
+    return await vector_engine.query(query, tenant_id, document_id)

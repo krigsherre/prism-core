@@ -132,13 +132,22 @@ async def chat(req: ChatRequest, tenant_id: str = Depends(get_tenant_from_token)
                         if output.get("references"):
                             last_references = output.get("references")
                 
-            if not last_final_answer:
-                final_state = await brain_graph.aget_state(config)
-                if final_state and final_state.values:
-                    vals = final_state.values
-                    last_final_answer = vals.get('final_answer', '')
-                    if not last_references:
-                        last_references = vals.get('references', [])
+            clean_refs = []
+            seen_ref_keys = set()
+            for r in (last_references or []):
+                if not isinstance(r, dict):
+                    continue
+                d_id = r.get("doc_id") or r.get("document_id") or ""
+                r_pg = r.get("source_page") or r.get("page") or r.get("page_number") or 1
+                try:
+                    p_num = int(r_pg)
+                except (ValueError, TypeError):
+                    p_num = 1
+                rk = (d_id, p_num)
+                if rk not in seen_ref_keys:
+                    seen_ref_keys.add(rk)
+                    clean_refs.append(r)
+            last_references = clean_refs
 
             yield f"data: {json.dumps({'type': 'message_complete', 'content': last_final_answer})}\n\n"
             yield f"data: {json.dumps({'type': 'references', 'content': last_references})}\n\n"

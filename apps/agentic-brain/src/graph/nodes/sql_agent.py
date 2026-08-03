@@ -92,18 +92,22 @@ async def generate_sql_node(state: InteractionState) -> dict:
 
     llm = LLMFactory.get_structured_llm(MultiSQLPlanOutput, ModelTier.FRONTIER)
     
+    cube_info = f"\nAVAILABLE CUBE SEMANTIC SCHEMA (mode=cube):\n{cube_schema}\n" if has_cube else "\nCUBE SCHEMA AVAILABLE: False\n"
+
     system_prompt = f"""You are an expert SQL planner for Agentic Brain.
 Your goal is to formulate a plan containing 1 to 4 parallel queries to retrieve complete financial data from the database.
 
 AVAILABLE POSTGRES VIEWS (mode=exact):
 {postgres_views}
 
+{cube_info}
+
 AVAILABLE DOCUMENTS IN KNOWLEDGE BASE:
 {doc_catalog}
 Use these IDs to filter `sys_document_id` if the user asks for a specific company, ticker, or document.
 
-If the user wants aggregations or calculated ratios, use mode=cube if available.
-CUBE SCHEMA AVAILABLE: {has_cube}
+For ratio calculations, aggregations, or financial totals, use mode=cube if available.
+For exact table line items, use mode=exact against view_* names.
 
 For complex questions, return MULTIPLE queries in `queries` (e.g. one for Income Statement, one for Balance Sheet) to gather complete financial context.
 """
@@ -198,22 +202,35 @@ def _build_references_from_exact(result_json: str) -> list:
         return refs
     
     rows = data.get("rows") if isinstance(data, dict) else (data if isinstance(data, list) else [])
+    seen = set()
     for row in rows or []:
         if not isinstance(row, dict):
             continue
         doc_id = row.get("sys_document_id") or row.get("document_id")
-        page = row.get("source_page", 1)
-        node_id = row.get("sys_node_id")
-        filename = row.get("sys_filename", "Document")
-        company = row.get("sys_company_name", "")
+        raw_page = row.get("source_page") or row.get("page_number") or row.get("sys_page_number") or row.get("page")
+        try:
+            page = int(raw_page) if raw_page is not None else 1
+        except (ValueError, TypeError):
+            page = 1
+        node_id = row.get("sys_node_id") or row.get("node_id")
+        filename = row.get("sys_filename") or row.get("filename") or "Document"
+        company = row.get("sys_company_name") or row.get("company_name") or ""
         if not doc_id:
             continue
+            
+        key = (doc_id, page)
+        if key in seen:
+            continue
+        seen.add(key)
+
         refs.append(
             {
+                "doc_id": doc_id,
                 "document_id": doc_id,
                 "filename": filename,
                 "company_name": company,
                 "node_id": node_id,
+                "source_page": page,
                 "page": page,
                 "source": "postgres_exact",
                 "view": data.get("view") if isinstance(data, dict) else "",
@@ -291,8 +308,22 @@ def execute_sql_node(state: InteractionState) -> dict:
             "retries": 1,
         }
 
+    deduped_refs = []
+    seen_keys = set()
+    for ref in all_references:
+        d_id = ref.get("doc_id") or ref.get("document_id") or ""
+        r_pg = ref.get("source_page") or ref.get("page") or ref.get("page_number") or 1
+        try:
+            p_num = int(r_pg)
+        except (ValueError, TypeError):
+            p_num = 1
+        ref_key = (d_id, p_num)
+        if ref_key not in seen_keys:
+            seen_keys.add(ref_key)
+            deduped_refs.append(ref)
+
     return {
         "error_message": "",
         "sql_result": json.dumps(combined_results, indent=2, default=str),
-        "references": all_references[:30],
+        "references": deduped_refs[:20],
     }

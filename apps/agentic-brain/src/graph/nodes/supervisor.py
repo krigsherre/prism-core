@@ -34,7 +34,22 @@ async def supervisor_node(state: InteractionState) -> dict:
     
     llm = LLMFactory.get_structured_llm(IntentClassification, ModelTier.FRONTIER)
     
-    document_id = state.get("document_id")
+    document_id = state.get("document_id") or ""
+    if (not document_id or document_id.lower() == "all") and docs:
+        if len(docs) == 1:
+            document_id = docs[0].get("document_id") or ""
+        else:
+            lower_msg = user_msg.lower()
+            for d in docs:
+                c_name = (d.get("company_name") or "").lower()
+                t_name = (d.get("ticker") or "").lower()
+                f_name = (d.get("filename") or "").lower()
+                if (c_name and c_name in lower_msg) or (t_name and len(t_name) >= 3 and t_name in lower_msg) or (f_name and f_name in lower_msg):
+                    document_id = d.get("document_id") or ""
+                    break
+            if not document_id:
+                document_id = docs[0].get("document_id") or ""
+
     doc_context = f"Target Document: {document_id}" if document_id else "Target Document: ALL (Global Knowledge Base)"
 
     system_prompt = f"""You are an intelligent supervisor for a Tri-Modal RAG system.
@@ -60,20 +75,17 @@ CRITICAL RULES:
             HumanMessage(content=user_msg)
         ])
         
-        intents = response.intents if response and response.intents else ["VECTOR"]
         reasoning = response.reasoning if response else "Fallback"
     except Exception as e:
         logger.error("Supervisor LLM failed", error=str(e))
-        intents = ["SQL", "VECTOR", "CYPHER"]
         reasoning = "Fallback due to LLM error"
 
-    valid_intents = [i.upper() for i in intents if i.upper() in ["SQL", "CYPHER", "VECTOR"]]
-    if not valid_intents:
-        valid_intents = ["VECTOR"]
+    valid_intents = ["SQL", "VECTOR", "CYPHER"]
 
-    logger.info("Supervisor Decision", intents=valid_intents, reasoning=reasoning)
+    logger.info("Supervisor Decision", intents=valid_intents, reasoning=reasoning, resolved_document_id=document_id)
     
     return {
+        "document_id": document_id,
         "required_modalities": valid_intents,
         "target_task": "",
         "error_message": "",
