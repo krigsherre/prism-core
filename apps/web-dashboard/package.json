@@ -21,6 +21,7 @@
     "react-dom": "^18.2.0",
     "react-markdown": "^10.1.0",
     "react-pdf": "^7.7.1",
+    "remark-gfm": "^4.0.1",
     "shadcn": "^4.16.1",
     "tailwind-merge": "^2.2.1",
     "tailwindcss-animate": "^1.0.7",

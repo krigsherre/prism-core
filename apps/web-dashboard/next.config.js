@@ -17,6 +17,14 @@ const nextConfig = {
         source: "/api/v1/hitl/:path*",
         destination: "http://schema-aligner:8001/api/v1/hitl/:path*",
       },
+      {
+        source: "/api/hitl/:path*",
+        destination: "http://agentic-brain:8001/api/hitl/:path*",
+      },
+      {
+        source: "/api/hitl",
+        destination: "http://agentic-brain:8001/api/hitl",
+      },
     ]
   },
   webpack: (config) => {

@@ -11,7 +11,12 @@ const outfit = Outfit({ subsets: ["latin"], variable: "--font-outfit", weight: [
 
 export const metadata: Metadata = {
   title: "Prism — Agentic Intelligence Platform",
-  description: "Enterprise Tri-Modal RAG Orchestrator"
+  description: "Enterprise Tri-Modal RAG Orchestrator",
+  icons: {
+    icon: "/favicon.png",
+    shortcut: "/favicon.png",
+    apple: "/apple-touch-icon.png",
+  },
 }
 
 export default function RootLayout({

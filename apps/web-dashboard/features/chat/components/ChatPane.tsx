@@ -2,18 +2,52 @@
 
 import React, { useState, useRef, useEffect } from "react"
 import { useAppStore } from "@/store/useAppStore"
-import { Bot, ArrowUp, Sparkles, FileText, Trash2, ShieldCheck, RefreshCw } from "lucide-react"
+import { Bot, ArrowUp, FileText, Trash2, ShieldCheck, RefreshCw } from "lucide-react"
 import { WorkflowDag } from "./WorkflowDag"
 import { ChatMessage } from "./ChatMessage"
 import { motion, AnimatePresence } from "framer-motion"
 import { api } from "@/services/apiClient"
 
 const SUGGESTIONS = [
-  "Audit Apple Inc. (AAPL) Net Income vs Operating Cash Flow in SEC 10-K",
-  "Extract Total Net Sales, Gross Margin & R&D Expense from SEC 10-K",
-  "Verify Related Party Transactions & Note disclosures in SEC filing",
-  "Calculate Interest Coverage Ratio & Debt Maturity schedule for Apple",
+  {
+    label: "Forensic Audit",
+    text: "Flag P&L vs Cash Flow discrepancies — cross-check if Net Income reconciles with Operating Cash Flow in the uploaded 10-K",
+    persona: "forensic_auditor",
+  },
+  {
+    label: "Compliance",
+    text: "Verify SEC Item 8 footnote disclosures — are lease commitment maturities and debt repayment schedules fully disclosed?",
+    persona: "compliance_officer",
+  },
+  {
+    label: "Credit Risk",
+    text: "Calculate Interest Coverage Ratio (EBIT ÷ Interest Expense) and assess short-term debt vs liquid cash reserves",
+    persona: "credit_analyst",
+  },
+  {
+    label: "Research",
+    text: "Summarize total revenue, gross margin trend, and PAT growth across all uploaded annual reports",
+    persona: "research_assistant",
+  },
+  {
+    label: "Forensic Audit",
+    text: "Detect sudden spikes in Trade Receivables relative to Revenue growth — flag anomalies across filings",
+    persona: "forensic_auditor",
+  },
+  {
+    label: "Graph Intel",
+    text: "Map related-party transaction network — show all subsidiary and director-level corporate relationships in the knowledge graph",
+    persona: "forensic_auditor",
+  },
 ]
+
+const SUGGESTION_BADGE_COLORS: Record<string, string> = {
+  "Forensic Audit": "bg-red-50 text-red-600 border-red-200",
+  "Compliance": "bg-blue-50 text-blue-600 border-blue-200",
+  "Credit Risk": "bg-amber-50 text-amber-600 border-amber-200",
+  "Research": "bg-emerald-50 text-emerald-600 border-emerald-200",
+  "Graph Intel": "bg-purple-50 text-purple-600 border-purple-200",
+}
 
 const PERSONAS = [
   { id: "forensic_auditor", name: "Forensic Accounting Auditor", role: "Auditor" },
@@ -66,9 +100,10 @@ export const ChatPane = () => {
     }
   }
 
-  const handleSuggestion = (s: string) => {
+  const handleSuggestion = (s: { text: string; persona: string }) => {
     if (workflowStatus === "RUNNING") return
-    startWorkflow([], s, selectedPersona, activeDocumentId || "")
+    setSelectedPersona(s.persona)
+    startWorkflow([], s.text, s.persona, activeDocumentId || "")
   }
 
   const handleInput = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -171,15 +206,23 @@ export const ChatPane = () => {
                 </p>
               </div>
               {/* Suggestion chips */}
-              <div className="grid grid-cols-2 gap-2.5 w-full max-w-xl mt-2">
-                {SUGGESTIONS.map((s) => (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 w-full max-w-2xl mt-2">
+                {SUGGESTIONS.map((s, i) => (
                   <button
-                    key={s}
+                    key={i}
                     onClick={() => handleSuggestion(s)}
-                    className="text-left text-xs font-medium text-foreground bg-surface border border-border rounded-xl px-4 py-3 hover:border-brand/40 hover:bg-brandLight hover:text-brand transition-all duration-150 shadow-card leading-snug flex items-start gap-2"
+                    className="group text-left bg-surface border border-border rounded-xl px-4 py-3.5 hover:border-brand/40 hover:shadow-md transition-all duration-150 shadow-card flex flex-col gap-2"
                   >
-                    <Sparkles size={13} className="text-brand shrink-0 mt-0.5" />
-                    <span>{s}</span>
+                    <span
+                      className={`self-start text-[10px] font-semibold px-2 py-0.5 rounded-full border ${
+                        SUGGESTION_BADGE_COLORS[s.label] ?? "bg-gray-50 text-gray-500 border-gray-200"
+                      }`}
+                    >
+                      {s.label}
+                    </span>
+                    <span className="text-xs font-medium text-foreground leading-snug group-hover:text-brand transition-colors">
+                      {s.text}
+                    </span>
                   </button>
                 ))}
               </div>

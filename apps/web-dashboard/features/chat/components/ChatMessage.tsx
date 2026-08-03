@@ -4,6 +4,7 @@ import React, { useState } from "react"
 import { Bot, User, Brain, ChevronDown, ChevronRight, CheckCircle2, Loader2, MapPin, FileText } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
 import ReactMarkdown from "react-markdown"
+import remarkGfm from "remark-gfm"
 import { useAppStore, Message, Reference } from "@/store/useAppStore"
 import { api } from "@/services/apiClient"
 
@@ -151,7 +152,7 @@ export const ChatMessage = ({ message }: ChatMessageProps) => {
 
               {message.content ? (
                 <div className="prose-chat text-[14px] leading-relaxed">
-                  <ReactMarkdown
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}
                     components={{
                       a: ({ href, children, ...props }) => (
                         <a
