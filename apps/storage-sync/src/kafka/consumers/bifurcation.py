@@ -556,34 +556,63 @@ class DocumentRouter:
         
         if producer:
             try:
-                await producer.send_and_wait("raw_table_doms", key=document_id.encode("utf-8"), value=json.dumps(payload).encode("utf-8"))
+                await producer.send("raw_table_doms", key=document_id.encode("utf-8"), value=json.dumps(payload).encode("utf-8"))
                 logger.info("Routed table node to raw_table_doms topic", node_id=node.id)
                 metrics["sql_mapped"] = True
                 metrics["sql_nodes_count"] += 1
             except Exception as e:
                 logger.error("Failed to send table to Kafka, skipping", error=str(e), node_id=node.id)
 
-        if node.content and node.content.strip():
-            try:
-                vector = self._get_embedding(node, precomputed_embeddings)
-                metadata = {
-                    "tenant_id": tenant_id, "document_id": document_id, "node_id": node.id,
-                    "node_type": "NODE_TYPE_TABLE", "content": node.content,
-                    "parent_section_text": parent_text, "is_structured_table": True,
-                    "source_page": prov["page_number"], "source_bbox": prov["bounding_box"],
-                    "user_id": user_id
-                }
-                if point_batch is not None:
-                    import uuid
-                    from qdrant_client import models
-                    qdrant_id = str(uuid.uuid5(uuid.NAMESPACE_OID, node.id))
-                    point_batch.append(models.PointStruct(id=qdrant_id, vector=vector, payload=metadata))
-                else:
-                    await self.qdrant_repo.upsert_vector(node_id=node.id, document_id=document_id, vector=vector, payload=metadata)
-                logger.info("Dual-routed table node to Qdrant Vector DB", node_id=node.id)
-                metrics["vector_mapped"] = True
-            except Exception as e:
-                logger.error("Failed to embed table to Qdrant", error=str(e), node_id=node.id)
+        # Offload secondary graph task routing and Qdrant vector upserts to async background tasks
+        async def _async_secondary_tasks():
+            if producer:
+                text_for_graph = f"{full_context}\n{markdown}"
+                high_signal_patterns = [
+                    r"related\s+party", r"subsidiary", r"holding\s+company", r"joint\s+venture",
+                    r"director", r"key\s+managerial", r"kmp", r"auditor", r"guarantee",
+                    r"facility\s+agreement", r"borrowing", r"acquisition", r"merger", r"amalgamation",
+                    r"jurisdiction", r"ownership", r"exhibit\s+21", r"consolidation"
+                ]
+                import re
+                if any(re.search(pat, text_for_graph, re.IGNORECASE) for pat in high_signal_patterns):
+                    graph_payload = {
+                        "tenant_id": tenant_id, "document_id": document_id, "node_id": node.id,
+                        "text_content": text_for_graph, "parent_section_text": full_context,
+                        "source_page": prov["page_number"], "source_bbox": prov["bounding_box"],
+                        "user_id": user_id
+                    }
+                    try:
+                        await producer.send("graph_extraction_tasks", key=document_id.encode("utf-8"), value=json.dumps(graph_payload).encode("utf-8"))
+                        logger.info("Dual-routed corporate table node to graph_extraction_tasks", node_id=node.id)
+                        metrics["graph_mapped"] = True
+                        metrics["graph_nodes_count"] += 1
+                    except Exception as e:
+                        logger.error("Failed to route table to Graph Agent", error=str(e), node_id=node.id)
+
+            if node.content and node.content.strip():
+                try:
+                    vector = self._get_embedding(node, precomputed_embeddings)
+                    metadata = {
+                        "tenant_id": tenant_id, "document_id": document_id, "node_id": node.id,
+                        "node_type": "NODE_TYPE_TABLE", "content": node.content,
+                        "parent_section_text": parent_text, "is_structured_table": True,
+                        "source_page": prov["page_number"], "source_bbox": prov["bounding_box"],
+                        "user_id": user_id
+                    }
+                    if point_batch is not None:
+                        import uuid
+                        from qdrant_client import models
+                        qdrant_id = str(uuid.uuid5(uuid.NAMESPACE_OID, node.id))
+                        point_batch.append(models.PointStruct(id=qdrant_id, vector=vector, payload=metadata))
+                    else:
+                        await self.qdrant_repo.upsert_vector(node_id=node.id, document_id=document_id, vector=vector, payload=metadata)
+                    logger.info("Dual-routed table node to Qdrant Vector DB", node_id=node.id)
+                    metrics["vector_mapped"] = True
+                except Exception as e:
+                    logger.error("Failed to embed table to Qdrant", error=str(e), node_id=node.id)
+
+        import asyncio
+        asyncio.create_task(_async_secondary_tasks())
 
     async def _route_kv(self, tenant_id, document_id, node, producer, prov, full_context, parent_text, user_id, metrics, precomputed_embeddings, point_batch=None):
         payload = {
@@ -601,6 +630,29 @@ class DocumentRouter:
                 metrics["sql_nodes_count"] += 1
             except Exception as e:
                 logger.error("Failed to send KV node to Kafka, skipping", error=str(e), node_id=node.id)
+
+            text_for_graph = f"{full_context}\n{node.content or ''}"
+            high_signal_patterns = [
+                r"related\s+party", r"subsidiary", r"holding\s+company", r"joint\s+venture",
+                r"director", r"key\s+managerial", r"kmp", r"auditor", r"guarantee",
+                r"facility\s+agreement", r"borrowing", r"acquisition", r"merger", r"amalgamation",
+                r"jurisdiction", r"ownership", r"exhibit\s+21", r"consolidation"
+            ]
+            import re
+            if any(re.search(pat, text_for_graph, re.IGNORECASE) for pat in high_signal_patterns):
+                graph_payload = {
+                    "tenant_id": tenant_id, "document_id": document_id, "node_id": node.id,
+                    "text_content": text_for_graph, "parent_section_text": full_context,
+                    "source_page": prov["page_number"], "source_bbox": prov["bounding_box"],
+                    "user_id": user_id
+                }
+                try:
+                    await producer.send_and_wait("graph_extraction_tasks", key=document_id.encode("utf-8"), value=json.dumps(graph_payload).encode("utf-8"))
+                    logger.info("Dual-routed corporate KV node to graph_extraction_tasks", node_id=node.id)
+                    metrics["graph_mapped"] = True
+                    metrics["graph_nodes_count"] += 1
+                except Exception as e:
+                    logger.error("Failed to route KV node to Graph Agent", error=str(e), node_id=node.id)
 
         if node.content and node.content.strip():
             try:
@@ -736,15 +788,43 @@ class BifurcationConsumer:
             ready = self.assembler.add(tenant_id, dom)
             if ready is None:
                 logger.info(
-                    "Waiting for remaining PDF chunks before stitch/route",
+                    "Streaming page-level table nodes immediately while buffering remaining PDF chunks",
                     document_id=dom.document_id,
                     chunk_index=dom.metadata.get("chunk_index"),
                     chunk_total=dom.metadata.get("chunk_total"),
                 )
+                await self._stream_page_tables_immediately(tenant_id, dom)
                 return
             await self._process_document(tenant_id, ready)
         except Exception as e:
             logger.error("Failed to process DocumentDOM", error=str(e), tenant_id=tenant_id)
+
+    async def _stream_page_tables_immediately(self, tenant_id: str, dom: dom_pb2.DocumentDOM) -> None:
+        """Stream page-level table nodes to raw_table_doms immediately without waiting for full document chunk assembly barrier."""
+        if not self._producer:
+            return
+        document_id = dom.document_id if dom.document_id else f"doc_{tenant_id}"
+        user_id = dom.metadata.get("user_id", None) if dom.metadata else None
+        
+        for node in dom.nodes:
+            if node.node_type in (dom_pb2.NODE_TYPE_TABLE, dom_pb2.NODE_TYPE_KEY_VALUE):
+                prov = self._extract_provenance(node)
+                full_context = self._get_parent_section_text(dom, node)
+                extracted = self._parse_table_content(node.content) if node.node_type == dom_pb2.NODE_TYPE_TABLE else self._parse_kv_content(node.content)
+                markdown = self._dict_to_markdown_table(extracted) if extracted and node.node_type == dom_pb2.NODE_TYPE_TABLE else (node.content or "")
+                
+                payload = {
+                    "tenant_id": tenant_id, "document_id": document_id, "node_id": node.id,
+                    "target_table": "", "extracted_data": extracted,
+                    "markdown_content": markdown, "source_page": prov["page_number"],
+                    "source_bbox": prov["bounding_box"], "user_id": user_id,
+                    "parent_section_text": full_context
+                }
+                try:
+                    await self._producer.send("raw_table_doms", key=document_id.encode("utf-8"), value=json.dumps(payload).encode("utf-8"))
+                    logger.info("Streamed page-level table node to raw_table_doms immediately", node_id=node.id, page=prov["page_number"])
+                except Exception as e:
+                    logger.error("Failed streaming page table node to Kafka", error=str(e), node_id=node.id)
 
     async def _process_document(self, tenant_id: str, dom: dom_pb2.DocumentDOM) -> None:
         document_id = dom.document_id if dom.document_id else f"doc_{tenant_id}"
