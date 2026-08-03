@@ -1,6 +1,7 @@
 <p align="center">
-  <img src="icon.png" alt="Prism Core" width="72" />
+  <img src="apps/web-dashboard/app/icon.png" alt="Prism Core" width="100" />
 </p>
+
 
 <h1 align="center">Research & Reading</h1>
 

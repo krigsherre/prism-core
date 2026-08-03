@@ -17,6 +17,27 @@
 
 ---
 
+## 🎯 Problem Framing & Project Scope
+
+> **Problem Statement #3:** *Turn messy documents into structured, queryable data.*
+
+### 1. Target Audience & Product Thinking
+**Prism Core** solves the multi-page financial filing extraction problem for **financial analysts, auditors, and enterprise data engineers**. Messy financial PDFs (10-K filings, balance sheets, income statements, receipts, bank statements) contain complex multi-column reading orders, mixed text/table regions, and strict mathematical constraints (e.g. $\text{Assets} = \text{Liabilities} + \text{Equity}$).
+
+Rather than building a generic naive PDF text-scraper, Prism Core turns unstructured documents into a **tri-modal queryable data system**:
+1. **Structured SQL Tables** (PostgreSQL `JSONB` rows for precise columnar queries and financial ratio analytics).
+2. **Dense Vector Index** (Qdrant `bge-small-en-v1.5` embeddings for semantic chunk retrieval).
+3. **Knowledge Graph** (Neo4j entity triples for auditing corporate relationships, subsidiaries, and directors).
+
+### 2. What We Deliberately Cut & Why
+To deliver deep engineering quality within the project timeline, we made explicit scoping decisions:
+* **Cut Monolithic VLM Rendering:** Avoided passing entire 100-page PDFs through 7B VLMs. Instead, element-level layout detection routes text to PyMuPDF and reserves VLM compute strictly for complex tables (reduced GPU cost by 80%).
+* **Cut Prompt-Based Multi-Tenancy:** Rejected asking LLMs to append `WHERE tenant_id = ...` in prompt strings. Implemented AST query rewriting at the tool driver layer so isolation is hard-coded and injection-proof.
+* **Deferred Full MinHash LSH:** Chained exact SHA-256 Redis deduplication and version metadata update paths first, deferring full fuzzy MinHash matrix calculations to post-v1.
+* **Deferred LoRA Fine-Tuning Pipeline:** Captured human corrections in the HITL dashboard as structured JSON patch deltas (`scripts/export_corrections.py`), leaving active fine-tuning model compilation as a roadmap step.
+
+---
+
 ## Decision Index
 
 | # | Decision | Stage | Status |
@@ -25,6 +46,7 @@
 | 1.2 | [Dedup chain before GPU](#12-dedup-chain-before-gpu) | Ingestion | ✅ Implemented |
 | 1.3 | [SQS buffer → Kafka](#13-sqs-buffer--kafka) | Ingestion | ✅ Implemented |
 | 1.4 | [Dual ingestion & fast-path routing](#14-dual-ingestion--structured-fast-path-routing) | Ingestion | ✅ Implemented |
+| 1.5 | [Protobuf v3 & Buf codegen stubs](#15-protobuf-v3--buf-codegen-stubs) | Contracts | ✅ Implemented |
 | 2.1 | [Element-level routing](#21-element-level-routing) | Vision | ✅ Implemented |
 | 2.2 | [Reading order — 1D cluster + X sort](#22-reading-order-1d-cluster--x-sort) | Vision | ✅ Implemented |
 | 3.1 | [Structured outputs, not in-process outlines](#31-structured-outputs-not-in-process-outlines) | Alignment | ✅ Implemented |
@@ -42,10 +64,12 @@
 | 5.5 | [Tool-side multitenancy](#55-tool-side-multitenancy--query-rewriting) | Agents | ✅ Implemented |
 | 5.6 | [HITL correction distillation loop](#56-hitl-correction-distillation-loop) | Agents | 🗺 Roadmap |
 | 5.7 | [Domain-agnostic engine design](#57-domain-agnostic-engine-design) | Agents | ✅ Implemented |
+| 5.8 | [App Router UI & synchronized provenance viewer](#58-app-router-ui--synchronized-provenance-viewer) | UI | ✅ Implemented |
 | 6.1 | [Partition-keyed consumer group scaling](#61-partition-keyed-consumer-group-scaling) | Scale | ✅ Implemented |
 | 6.2 | [Centralized model inference sidecars](#62-centralized-model-inference-sidecars) | Scale | ✅ Implemented |
 | 6.3 | [Stateless task claiming via SKIP LOCKED](#63-stateless-task-claiming-via-for-update-skip-locked) | Scale | ✅ Implemented |
 | 6.4 | [Atomic upsert keys for safe re-balancing](#64-atomic-upsert-keys-for-safe-re-balancing) | Scale | ✅ Implemented |
+| 6.5 | [Dual Compose decoupled infra backplane](#65-dual-compose-decoupled-infra-backplane) | Scale | ✅ Implemented |
 
 ---
 
@@ -98,6 +122,17 @@
 **Decision:** Inspect incoming document types via `doc_router`. Structured digital filings (SEC iXBRL HTML or Indian MCA/BSE XBRL XML) bypass VLM rendering entirely and parse embedded taxonomy tags directly with near 100% precision. Unstructured PDFs/images route to `gpu-extractor`.
 
 **See:** `apps/schema-aligner/decision.md`
+
+</details>
+
+<details>
+<summary><strong>1.5 Protobuf v3 & Buf Codegen Stubs</strong></summary>
+
+**Package:** `packages/contracts`
+
+**Decision:** Define all inter-service Kafka payloads (`IngestEvent`, `CitationPayload`) and visual layout trees (`DocumentDOM`, `Node`) strictly in `proto/prism/v1/*.proto` as Protocol Buffer v3 schemas. Checked-in stubs in `gen/{go,python,ts}` are compiled using Buf (`npx buf generate`) for offline, zero-dependency container builds.
+
+**See:** `packages/contracts/README.md`
 
 </details>
 
@@ -337,7 +372,18 @@
 
 **Decision:** Financial filings serve as the primary high-complexity target domain. The pipeline, schema registry, and tri-modal RAG are 100% domain-agnostic and extendable to Healthcare, Legal, and Insurance by swapping registry schemas and graph prompts.
 
-**See:** `apps/schema-aligner/decision.md`, `apps/agentic-brain/decision.md`
+</details>
+
+<details>
+<summary><strong>5.8 App Router UI & Synchronized Provenance Viewer</strong></summary>
+
+**Service:** `web-dashboard`
+
+**Decision:** Next.js 14 App Router dashboard with TailwindCSS, Zustand client stores, real-time SSE proxy (`app/api/brain/.../route.ts`), and interactive PDF page coordinate canvas mapping extracted financial tables directly back to source bounding box coordinates.
+
+**Why:** Allows analysts to verify extraction accuracy directly against the original PDF visual coordinates without toggling separate viewers. Real-time SSE streaming ensures HITL review queues and chat responses render progressively without polling overhead.
+
+**See:** `apps/web-dashboard/README.md`
 
 </details>
 
@@ -402,6 +448,19 @@ docker-compose up --scale gpu-extractor=4 --scale schema-aligner=8
 **Why:** Guaranteed idempotency across Kafka partition re-balances, network retries, or worker crashes. Re-processing the same event never creates duplicate rows or vector drift.
 
 **See:** `apps/storage-sync/decision.md`
+
+</details>
+
+<details>
+<summary><strong>6.5 Dual Compose Decoupled Infra Backplane</strong></summary>
+
+**Subsystem:** `infra`
+
+**Decision:** Decouple shared infrastructure data stores, CDC pipeline, and LGTM telemetry into `infra/docker-compose.yml` (`Postgres`, `Kafka`, `Debezium`, `Qdrant`, `Neo4j`, `Redis`, `ElasticMQ`, `S3Mock`, `Cube`, `Loki`, `Tempo`, `Grafana`) separate from product app containers in root `docker-compose.yml`.
+
+**Why:** Allows core stores and observability to run persistently while product microservice containers can be rebuilt, scaled, or debugged independently without resetting database states or restarting the entire stack.
+
+**See:** `infra/README.md`
 
 </details>
 
