@@ -20,7 +20,7 @@
 
 <p align="center">
   <a href="architecture.md">📐 Architecture</a> ·
-  <a href="decisions.md">🗂 ADRs</a> ·
+  <a href="decisions.md">🗂 Decisions</a> ·
   <a href="research.md">📚 Research</a> ·
   <a href="infra/README.md">🔧 Infra</a> ·
   <a href="packages/contracts/README.md">📦 Contracts</a>
