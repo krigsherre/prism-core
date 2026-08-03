@@ -7,7 +7,7 @@ from typing import Optional, List
 from pydantic import BaseModel, Field
 
 from langchain_anthropic import ChatAnthropic
-from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.messages import SystemMessage, HumanMessage
 from core.config import settings
 from core.neo4j_client import neo4j_client
 
@@ -26,13 +26,8 @@ class GraphConsumer:
         self._consumer: Optional[AIOKafkaConsumer] = None
         self._producer: Optional[AIOKafkaProducer] = None
         
-        model_name = settings.frontier_llm_model if settings.frontier_llm_model else "claude-haiku-4-5-20251001"
-        self._llm = ChatAnthropic(
-            model=model_name,
-            api_key=settings.anthropic_api_key,
-            temperature=0,
-            max_tokens=2048,
-        ).with_structured_output(KnowledgeGraph)
+        from llm.factory import LLMFactory, ModelTier
+        self._llm = LLMFactory.get_structured_llm(KnowledgeGraph, ModelTier.STANDARD)
 
     @retry(stop=stop_after_attempt(5), wait=wait_exponential(multiplier=1, min=2, max=10), reraise=True)
     async def _connect(self) -> None:
@@ -78,31 +73,41 @@ class GraphConsumer:
             text_content = payload.get("text_content")
             source_page = payload.get("source_page", 1)
             
-            if not text_content:
+            if not text_content or not self._is_high_signal_text(text_content):
+                logger.debug("Skipping low-signal text fragment for graph ingestion", page=source_page)
                 return
 
             structlog.contextvars.bind_contextvars(
                 tenant_id=tenant_id, document_id=document_id
             )
             
-            logger.info("Extracting graph triples from text node", node_id=payload.get("node_id"))
+            logger.info("Extracting high-signal graph triples from text node", node_id=payload.get("node_id"))
             
-            prompt = ChatPromptTemplate.from_messages([
-                ("system", "You are an expert Graph Data Extractor. Extract all meaningful relationships from the provided text as Subject-Predicate-Object triples. Keep entities concise and clean."),
-                ("user", "Extract triples from the following text:\n\n{text}")
-            ])
+            messages = [
+                SystemMessage(content=(
+                    "You are an expert Financial Knowledge Graph Extractor. "
+                    "Extract ONLY high-precision, strategic corporate & financial relationships as Subject-Predicate-Object triples. "
+                    "Focus on: Subsidiary/Ownership, Key Executives/Directors, Audit Firms, Related Party Transactions, Debt/Facility Commitments, and Segment Revenues. "
+                    "Ignore generic prose, page numbers, or unspecific terms. Keep entity names concise, specific, and clean."
+                )),
+                HumanMessage(content=f"Extract high-precision triples from the following text:\n\n{text_content}")
+            ]
             
-            chain = prompt | self._llm
-            result: KnowledgeGraph = await chain.ainvoke({"text": text_content})
+            try:
+                result = await self._llm.ainvoke(messages)
+                if isinstance(result, list):
+                    result = KnowledgeGraph(triples=[])
+            except Exception as parse_e:
+                logger.debug("No valid triples parsed from text block", error=str(parse_e))
+                result = KnowledgeGraph(triples=[])
             
-            if not result or not result.triples:
+            if not result or not hasattr(result, "triples") or not result.triples:
                 logger.info("No triples extracted from text")
                 return
-                
-            for triple in result.triples:
-                await self._ingest_triple(triple, document_id, tenant_id, source_page)
-                
-            logger.info("Successfully extracted and ingested graph triples", count=len(result.triples))
+
+            capped_triples = result.triples[:5]
+            await self._ingest_triples_batch(capped_triples, document_id, tenant_id, source_page)
+            logger.info("Successfully extracted and batch ingested graph triples", count=len(capped_triples))
             
         except Exception as e:
             logger.error("Failed to process graph extraction task", error=str(e))
@@ -124,20 +129,78 @@ class GraphConsumer:
                 except Exception as status_e:
                     logger.error(f"Failed to emit graph status: {status_e}")
 
-    async def _ingest_triple(self, triple: Triple, document_id: str, tenant_id: str, source_page: int) -> None:
-        predicate = triple.predicate.replace(" ", "_").replace("-", "_").upper()
+    def _is_high_signal_text(self, text: str) -> bool:
+        """Filter out generic narrative text to control Neo4j ingestion volume."""
+        if not text or len(text.strip()) < 40:
+            return False
+        import re
+        patterns = [
+            r"related\s+party",
+            r"subsidiary",
+            r"holding\s+company",
+            r"joint\s+venture",
+            r"director",
+            r"key\s+managerial",
+            r"kmp",
+            r"auditor",
+            r"guarantee",
+            r"facility\s+agreement",
+            r"borrowing",
+            r"acquisition",
+            r"merger",
+            r"amalgamation",
+            r"pledged?",
+            r"contingent\s+liabilit",
+        ]
+        return any(re.search(pat, text, re.IGNORECASE) for pat in patterns)
 
-        query = f"""
-        MERGE (s:Entity {{name: $subject, tenant_id: $tenant_id}})
-        MERGE (o:Entity {{name: $object, tenant_id: $tenant_id}})
-        MERGE (s)-[r:{predicate}]->(o)
-        SET r.document_id = $document_id, r.source_page = $source_page
+    def _canonicalize_entity(self, name: str) -> str:
+        """Normalize entity names and filter out generic noise words to prevent Neo4j node pollution."""
+        if not name:
+            return ""
+        import re
+        clean = name.strip()
+        clean = re.sub(r"[\s\.,]+$", "", clean).strip().upper()
+
+        stop_entities = {
+            "COMPANY", "THE COMPANY", "THE GROUP", "DIRECTORS", "NOTE", "NOTES",
+            "MANAGEMENT", "BOARD", "THIS SECTION", "UNAUDITED", "AUDITED", "PAGE",
+            "YEAR", "TOTAL", "AMOUNT", "FINANCIAL STATEMENTS", "STATEMENT", "CURRENCY",
+            "NET REVENUE", "BALANCE SHEET", "INCOME STATEMENT", "ASSETS", "LIABILITIES"
+        }
+        if clean in stop_entities or len(clean) < 3:
+            return ""
+        return clean
+
+    async def _ingest_triples_batch(self, triples: List[Triple], document_id: str, tenant_id: str, source_page: int) -> None:
+        """High-performance UNWIND batch insertion into Neo4j in a single database roundtrip."""
+        batch_data = []
+        for t in triples:
+            subject = self._canonicalize_entity(t.subject)
+            obj = self._canonicalize_entity(t.object)
+            if not subject or not obj or subject == obj:
+                continue
+            predicate = t.predicate.replace(" ", "_").replace("-", "_").upper()
+            batch_data.append({
+                "subject": subject,
+                "predicate": predicate,
+                "object": obj,
+                "source_page": source_page
+            })
+
+        if not batch_data:
+            return
+
+        cypher_batch = """
+        UNWIND $batch AS item
+        MERGE (s:Entity {name: item.subject, tenant_id: $tenant_id})
+        MERGE (o:Entity {name: item.object, tenant_id: $tenant_id})
+        MERGE (s)-[r:RELATION {type: item.predicate}]->(o)
+        SET r.document_id = $document_id, r.source_page = item.source_page
         """
         params = {
-            "subject": triple.subject,
-            "object": triple.object,
+            "batch": batch_data,
             "tenant_id": tenant_id,
-            "document_id": document_id,
-            "source_page": source_page
+            "document_id": document_id
         }
-        await neo4j_client.execute_write(query, params)
+        await neo4j_client.execute_write(cypher_batch, params)

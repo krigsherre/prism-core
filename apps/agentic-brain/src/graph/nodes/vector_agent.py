@@ -5,6 +5,7 @@ from llm.factory import LLMFactory, ModelTier
 from langchain_core.messages import SystemMessage, HumanMessage
 from graph.state import InteractionState
 from tools.qdrant_tools import query_vector_db
+from langchain_core.output_parsers import PydanticOutputParser
 
 logger = structlog.get_logger(__name__)
 
@@ -17,26 +18,13 @@ async def generate_vector_node(state: InteractionState) -> dict:
     """
     logger.info("Generating Vector Query")
     
-    llm = LLMFactory.get_llm(tier=ModelTier.STANDARD)
-    structured_llm = llm.with_structured_output(VectorQueryOutput)
-    
-    system_prompt = """You are a Semantic Search Expert.
-Extract the core meaning of the user's question to formulate a semantic search query.
-Return ONLY the search query string.
-"""
-    
     user_msg = ""
     for msg in reversed(state.get("messages", [])):
         if isinstance(msg, HumanMessage):
             user_msg = msg.content
             break
             
-    response = await structured_llm.ainvoke([
-        SystemMessage(content=system_prompt),
-        HumanMessage(content=user_msg)
-    ])
-    
-    return {"vector_query": response.search_query}
+    return {"vector_query": user_msg}
 
 async def execute_vector_node(state: InteractionState) -> dict:
     """

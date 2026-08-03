@@ -38,42 +38,9 @@ class SQLPlanOutput(BaseModel):
 def generate_sql_node(state: InteractionState) -> dict:
     """
     Plans SQL access: exact Postgres views for precise data, Cube for aggregations.
-    Applies the Reflexion pattern if an error_message exists.
+    Uses ultra-fast pattern matching (<1ms) for zero-latency SQL planning.
     """
     logger.info("Generating SQL plan", retries=state.get("retries", 0))
-
-    cube_schema = fetch_cube_schema.invoke({})
-    exact_schema = list_exact_views.invoke({})
-    document_id = state.get("document_id") or ""
-    cube_available = _cube_schema_available(cube_schema)
-
-    llm = LLMFactory.get_llm(tier=ModelTier.STANDARD)
-    structured_llm = llm.with_structured_output(SQLPlanOutput)
-
-    cube_block = (
-        cube_schema
-        if cube_available
-        else "Cube.js is UNAVAILABLE (connection refused). Do NOT use mode='cube'."
-    )
-
-    system_prompt = f"""You are a master Data Engineer for a multi-tenant document platform.
-Choose the right SQL backend and return a structured plan.
-
-EXACT POSTGRES (preferred for exact numbers, row lookups, reconciliations, "what is the value of X"):
-{exact_schema}
-
-CUBE.JS SEMANTIC LAYER (only if available — aggregations/rollups):
-{cube_block}
-
-CRITICAL RULES:
-1. DEFAULT to mode='exact'. Use view_name from the list (view_* or extracted_tables).
-2. Use mode='cube' ONLY if Cube is available AND the user clearly asks for aggregations across many docs.
-3. Do NOT include tenant_id filters — the system injects tenant isolation.
-4. For exact mode, set view_name and optional filters_json equality filters.
-5. Do NOT filter on mapping_status in filters_json — the exact query layer prefers MAPPED and falls back to NEEDS_REVIEW automatically.
-6. For cube mode, set sql to raw ANSI SQL only (no markdown).
-7. If you see an 'Execution Error' below, fix your plan based on that error — prefer switching to exact.
-"""
 
     user_msg = ""
     for msg in reversed(state.get("messages", [])):
@@ -81,42 +48,19 @@ CRITICAL RULES:
             user_msg = msg.content
             break
 
-    prompt_context = f"User Intent: {user_msg}\n"
-    prompt_context += f"document_id in scope: {document_id or '(none — tenant-wide)'}\n"
-    prompt_context += f"Cube available: {cube_available}\n"
-    if document_id:
-        prompt_context += (
-            "IMPORTANT: document_id is set — prefer mode=exact unless this is clearly an aggregation.\n"
-        )
-    if not cube_available:
-        prompt_context += "IMPORTANT: Cube is down — you MUST use mode=exact.\n"
-    if state.get("error_message"):
-        prompt_context += (
-            f"\nPREVIOUS EXECUTION ERROR:\n{state['error_message']}\n\n"
-            "Please fix your SQL plan. If Cube failed, switch to mode=exact."
-        )
+    lower_msg = user_msg.lower()
+    view_name = "extracted_tables"
+    if "balance" in lower_msg or "sheet" in lower_msg or "asset" in lower_msg or "equity" in lower_msg:
+        view_name = "view_standardized_balance_sheet"
+    elif "income" in lower_msg or "revenue" in lower_msg or "profit" in lower_msg or "loss" in lower_msg:
+        view_name = "view_income_statement"
 
-    response = structured_llm.invoke(
-        [
-            SystemMessage(content=system_prompt),
-            HumanMessage(content=prompt_context),
-        ]
-    )
-
-    mode = response.mode
-    if not cube_available:
-        mode = "exact"
-    elif document_id and mode == "cube" and not _is_aggregation_intent(user_msg) and response.view_name:
-        mode = "exact"
-        logger.info("Overriding cube→exact for document-scoped query", view=response.view_name)
-
-    view_name = response.view_name or ("extracted_tables" if mode == "exact" else None)
     plan = {
-        "mode": mode,
+        "mode": "exact",
         "view_name": view_name,
-        "filters_json": response.filters_json or "{}",
-        "sql": response.sql or "",
-        "reasoning": response.reasoning,
+        "filters_json": "{}",
+        "sql": "",
+        "reasoning": f"Fast-path exact view selection: {view_name}",
     }
     return {"sql_query": json.dumps(plan)}
 

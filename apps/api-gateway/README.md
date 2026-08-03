@@ -55,6 +55,6 @@ internal/
 | `APP_PORT` | `8080` | HTTP listen port |
 | `KAFKA_BROKER` | `localhost:9092` | Kafka bootstrap |
 | `KAFKA_INGESTTOPIC` | `doc_ingest_events` | Ingest event topic |
-| `S3_REGION` | `us-east-1` | AWS region |
+| `S3_REGION` | `me-east-1` | AWS region |
 | `S3_BUCKET` | `prism-raw-documents` | Raw upload bucket |
 | `S3_ENDPOINT` | _(empty)_ | Path-style endpoint for S3Mock/MinIO |

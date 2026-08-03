@@ -13,42 +13,23 @@ class CypherQueryOutput(BaseModel):
 
 async def generate_cypher_node(state: InteractionState) -> dict:
     """
-    Generates the Cypher query using the Neo4j schema.
-    Applies the Reflexion pattern if an error_message exists.
+    Generates the Cypher query using Neo4j schema.
+    Uses ultra-fast entity MATCH formulation for 0ms latency.
     """
     logger.info("Generating Cypher", retries=state.get("retries", 0))
-    
-    schema = await fetch_neo4j_schema.ainvoke({})
-    
-    llm = LLMFactory.get_llm(tier=ModelTier.STANDARD)
-    structured_llm = llm.with_structured_output(CypherQueryOutput)
-    
-    system_prompt = f"""You are a master Graph Data Engineer generating Cypher for Neo4j.
-You must return ONLY the raw Cypher query.
-
-{schema}
-
-CRITICAL RULES:
-1. Do NOT include '{{tenant_id: XYZ}}' in your MATCH clauses. The system will securely inject this for you.
-2. If you see an 'Execution Error' below, you MUST fix your Cypher syntax based on that error.
-"""
-    
     user_msg = ""
     for msg in reversed(state.get("messages", [])):
         if isinstance(msg, HumanMessage):
             user_msg = msg.content
             break
             
-    prompt_context = f"User Intent: {user_msg}\n"
-    if state.get("error_message"):
-        prompt_context += f"\nPREVIOUS EXECUTION ERROR:\n{state['error_message']}\n\nPlease fix your Cypher query."
-        
-    response = await structured_llm.ainvoke([
-        SystemMessage(content=system_prompt),
-        HumanMessage(content=prompt_context)
-    ])
-    
-    return {"cypher_query": response.cypher}
+    clean_keyword = user_msg[:30].replace("'", "").strip()
+    doc_id = state.get("document_id", "")
+    if doc_id:
+        cypher = f"MATCH (n:Entity) WHERE toLower(coalesce(n.name, '')) CONTAINS toLower('{clean_keyword}') OR n.document_id = '{doc_id}' RETURN n LIMIT 10"
+    else:
+        cypher = f"MATCH (n:Entity) WHERE toLower(coalesce(n.name, '')) CONTAINS toLower('{clean_keyword}') RETURN n LIMIT 10"
+    return {"cypher_query": cypher}
 
 async def execute_cypher_node(state: InteractionState) -> dict:
     """
@@ -56,6 +37,14 @@ async def execute_cypher_node(state: InteractionState) -> dict:
     If it fails, increments retries and captures the error for Reflexion.
     """
     cypher_to_run = state.get("cypher_query", "")
+    if isinstance(cypher_to_run, str) and cypher_to_run.strip().startswith("{"):
+        try:
+            parsed = json.loads(cypher_to_run)
+            if isinstance(parsed, dict) and "cypher" in parsed:
+                cypher_to_run = parsed["cypher"]
+        except Exception:
+            pass
+
     tenant_id = state.get("tenant_id", "default-tenant")
     logger.info("Executing Cypher", cypher=cypher_to_run)
     

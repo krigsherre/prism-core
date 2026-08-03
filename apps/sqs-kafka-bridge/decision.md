@@ -11,7 +11,7 @@ Foundational decisions for the `sqs-kafka-bridge` — ingress buffer from AWS SQ
 **Alternatives Evaluated:**
 * Kafka Connect + AWS SQS / Camel connector (JVM).
 
-**Why Chosen:** Keeps the stack Go/Python-only, avoids Connect classpath/JAR ops, and lets us control OTEL injection and payload shaping at the edge. Trade-off: one more binary to own.
+**Why Chosen:** Keeps the stack Go/Python-only, avoids Connect classpath/JAR ops, and lets me control OTEL injection and payload shaping at the edge. Trade-off: one more binary to own.
 
 ---
 

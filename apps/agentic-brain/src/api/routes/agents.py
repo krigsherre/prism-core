@@ -5,8 +5,16 @@ import uuid
 
 from api.deps import get_current_user
 from core.db import db_client
+from core.employee_personas import list_personas
 
 router = APIRouter(tags=["agents"])
+
+
+@router.get("/api/agents/personas")
+async def get_employee_personas():
+    """Return available pre-configured AI Employee Personas."""
+    return list_personas()
+
 
 class AgentCreateRequest(BaseModel):
     name: str

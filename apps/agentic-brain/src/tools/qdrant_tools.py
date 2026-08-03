@@ -45,7 +45,7 @@ async def query_vector_db(query: str, tenant_id: str, document_id: str = None) -
             collection_name=collection,
             query=vector,
             query_filter=models.Filter(must=must_conditions),
-            limit=5,
+            limit=10,
             with_payload=True,
         )
         

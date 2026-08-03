@@ -9,6 +9,15 @@ def inject_tenant_id_cypher(cypher: str, tenant_id: str) -> str:
     Inject tenant_id only into node patterns inside MATCH / OPTIONAL MATCH / MERGE.
     Never rewrite function args like type(rel) or properties() — that breaks Cypher.
     """
+    import json
+    if isinstance(cypher, str) and cypher.strip().startswith("{"):
+        try:
+            parsed = json.loads(cypher)
+            if isinstance(parsed, dict) and "cypher" in parsed:
+                cypher = parsed["cypher"]
+        except Exception:
+            pass
+
     clause_re = re.compile(
         r"\b(OPTIONAL\s+MATCH|MATCH|MERGE)\b",
         re.IGNORECASE,

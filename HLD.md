@@ -1,12 +1,12 @@
 # Prism Core — High-Level Design
 
-How we turn messy documents into structured data you can actually query — and what happens when the model is wrong.
+How I turn messy documents into structured data you can actually query — and what happens when the model is wrong.
 
-If you only skim one doc in this repo, make it this one. Deeper ADRs live in [`decisions.md`](decisions.md); the project-round narrative is in [`SUBMISSION.md`](SUBMISSION.md); papers we studied are in [`RESEARCH.md`](RESEARCH.md).
+If you only skim one doc in this repo, make it this one. Deeper ADRs live in [`decisions.md`](decisions.md); the project-round narrative is in [`SUBMISSION.md`](SUBMISSION.md); papers I studied are in [`RESEARCH.md`](RESEARCH.md).
 
 ---
 
-## What we’re solving
+## What I’m solving
 
 Most “document AI” demos do this:
 
@@ -17,7 +17,7 @@ flowchart LR
 
 That falls apart on real financial PDFs: columns get read in the wrong order, tables shift indexes, numbers look fine as JSON but break basic accounting, and if you write Postgres + Neo4j + Qdrant in one shot you get split-brain when one store dies.
 
-We scoped the problem more narrowly:
+I scoped the problem more narrowly:
 
 > Extract trustworthy rows from messy business docs, refuse to promote junk, and let an analyst ask questions against what actually landed.
 
@@ -27,7 +27,7 @@ Not “chat with any PDF on earth.” Finance-ish documents first. Depth over co
 
 ## The bet
 
-Accuracy isn’t one clever prompt. It’s a pipeline. Each stage kills a specific failure mode, then we query the structured result — not the pixels.
+Accuracy isn’t one clever prompt. It’s a pipeline. Each stage kills a specific failure mode, then I query the structured result — not the pixels.
 
 ```mermaid
 flowchart LR
@@ -70,13 +70,21 @@ flowchart TB
     Brain -.-> Obs
 ```
 
-Someone uploads (or S3 fires an event). Work moves through Kafka. The UI is for watching the queue, fixing what we can’t, and asking questions afterward.
+Someone uploads (or S3 fires an event). Work moves through Kafka. The UI is for watching the queue, fixing what I can’t, and asking questions afterward.
 
 ---
 
 ## How the boxes fit together
 
-We split the work on purpose. Go handles ingress and triage. Python owns CV and LLM alignment. Chat is its own service so a GPU OOM doesn’t take down Q&A.
+I split the work on purpose to leverage the distinct strengths of two very different ecosystems: Go and Python.
+
+**Go (Ingress & Triage)**
+Go handles the high-throughput, IO-bound edge of the system. Its concurrency model (goroutines) and low memory footprint make it perfect for streaming massive multi-gigabyte uploads without buffering to RAM (in `api-gateway`) and managing thousands of concurrent connections (in `triage-worker`). It easily absorbs IO storms that would choke a standard Python web server.
+
+**Python (Vision, Alignment & Agents)**
+Python owns the compute-heavy, AI-driven core. It is the undisputed king of the ML ecosystem—I need PyMuPDF for fast layout extraction, PyTorch/vLLM for running RT-DETR and large language models on GPUs, and LangGraph for complex agentic workflows. Writing this in Go would mean fighting against immature bindings. Python is kept away from the direct web edge to avoid GIL bottlenecks, operating solely as async consumer workers off Kafka or as internal gRPC services.
+
+Chat is its own isolated service so a GPU OOM on the Python side doesn’t take down Q&A.
 
 ```mermaid
 flowchart TB
@@ -204,7 +212,7 @@ sequenceDiagram
 
 ### When the numbers don’t add up
 
-We don’t immediately dump on a human. First we try to fix it ourselves.
+I don’t immediately dump on a human. First I try to fix it myself.
 
 ```mermaid
 sequenceDiagram
@@ -235,15 +243,15 @@ sequenceDiagram
     end
 ```
 
-So: **auto-repair first, HITL when we give up** (or when retrying would be stupid — empty OCR, unknown table, etc.).
+So: **auto-repair first, HITL when I give up** (or when retrying would be stupid — empty OCR, unknown table, etc.).
 
 ---
 
-## The parts we spent the most time on
+## The parts I spent the most time on
 
 ### Upload and triage
 
-Gateway streams the file to object storage so a 500MB PDF doesn’t blow RAM. Triage checks Redis for an exact hash so we don’t burn GPU on the same file twice. Near-duplicate / “version 2” handling sits behind that.
+Gateway streams the file to object storage so a 500MB PDF doesn’t blow RAM. Triage checks Redis for an exact hash so I don’t burn GPU on the same file twice. Near-duplicate / “version 2” handling sits behind that.
 
 ```mermaid
 flowchart TB
@@ -260,7 +268,7 @@ flowchart TB
 
 ### Extraction (this is where most demos cheat)
 
-We don’t OCR the whole page with one giant model.
+I don’t OCR the whole page with one giant model.
 
 1. Detect boxes (Docling layout, PyMuPDF fallback).  
 2. Sort into reading order with a simple Y-clustering pass (ε ≈ 15px), then X within a line — so two-column statements don’t get mashed.  
@@ -281,11 +289,11 @@ flowchart TB
     Bat --> DOM
 ```
 
-Big PDFs get chunked by pages; we carry section headers across chunks so a table on page 40 still knows whose statement it is.
+Big PDFs get chunked by pages; I carry section headers across chunks so a table on page 40 still knows whose statement it is.
 
 ### Aligning to a schema
 
-Classify what table this is, notice if it’s pivoted, build a Pydantic model from our registry (and inject entity/period/currency/scale), then extract in small row chunks so we don’t get the classic “column A has 9 values, column B has 10” mess.
+Classify what table this is, notice if it’s pivoted, build a Pydantic model from my registry (and inject entity/period/currency/scale), then extract in small row chunks so I don’t get the classic “column A has 9 values, column B has 10” mess.
 
 Then **declarative critics** run (balance-sheet identity, P&L chains, cash-flow rollup, bank running balance, invoice totals, …). Hard failures enter a bounded **Reflexion** repair loop with the critic result stuffed back into the prompt. After that budget, DLQ → HITL. Passing rows can still promote even if sibling rows failed.
 
@@ -301,13 +309,13 @@ flowchart TB
     Fix -->|gave up| HITL[Human review]
 ```
 
-Honest limit: critics check **internal consistency**. They won’t catch “the PDF said 700 but we read 70” if 70 still makes the equation work. That’s why HITL and goldens exist.
+Honest limit: critics check **internal consistency**. They won’t catch “the PDF said 700 but I read 70” if 70 still makes the equation work. That’s why HITL and goldens exist.
 
-### Storing without lying to ourselves
+### Storing without lying to myself
 
-Tables go through the aligner. Prose gets embedded straight to Qdrant. Aligned rows land in Postgres with a boring but important key: `(document_id, node_id, row_index)` and upsert on conflict. Kafka can deliver twice; we won’t double-insert garbage.
+Tables go through the aligner. Prose gets embedded straight to Qdrant. Aligned rows land in Postgres with a boring but important key: `(document_id, node_id, row_index)` and upsert on conflict. Kafka can deliver twice; I won’t double-insert garbage.
 
-Neo4j and Qdrant catch up via sync/CDC. If they’re down, offsets wait. We accepted eventual consistency over fake distributed transactions.
+Neo4j and Qdrant catch up via sync/CDC. If they’re down, offsets wait. I accepted eventual consistency over fake distributed transactions.
 
 ```mermaid
 flowchart TB
@@ -321,7 +329,7 @@ flowchart TB
 
 ### Chat
 
-After data is in, the brain is a small LangGraph: look at the question, maybe hit SQL, Cypher, and/or vector search in parallel, retry a couple times if the query blows up, then synthesize. Tenant filters get injected by our tools — we don’t ask the model to remember `tenant_id`.
+After data is in, the brain is a small LangGraph: look at the question, maybe hit SQL, Cypher, and/or vector search in parallel, retry a couple times if the query blows up, then synthesize. Tenant filters get injected by my tools — I don’t ask the model to remember `tenant_id`.
 
 Background “agents” in the UI are a fixed registry (export, validate, …), not “write Python against prod.”
 
@@ -364,7 +372,7 @@ erDiagram
 
 ## Making it operable
 
-Async pipelines are miserable to debug without correlation. We stamp OTel context across Kafka and put `trace_id` on JSON logs so Grafana can join Loki and Tempo.
+Async pipelines are miserable to debug without correlation. I stamp OTel context across Kafka and put `trace_id` on JSON logs so Grafana can join Loki and Tempo.
 
 ```mermaid
 flowchart LR
@@ -401,10 +409,10 @@ flowchart TB
 
 ---
 
-## What we cut on purpose
+## What I cut on purpose
 
 - Full SSO — `tenant_id` is everywhere; login product comes later  
-- Supporting every document type — we’d rather be sharp on statements/invoices  
+- Supporting every document type — I’d rather be sharp on statements/invoices  
 - “Always call GPT-4o” — cost and nondeterminism fight the goal  
 - Pretty marketing UI — queue, HITL, and chat matter more  
 

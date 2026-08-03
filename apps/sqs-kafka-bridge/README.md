@@ -43,7 +43,7 @@ internal/
 | `SQS_QUEUE_URL` | yes | — | Full SQS queue URL |
 | `KAFKA_BROKER` | yes | — | Kafka bootstrap |
 | `KAFKA_TOPIC` | no | `s3_discovery_events` | Destination topic |
-| `AWS_REGION` | no | `us-east-1` | AWS region |
+| `AWS_REGION` | no | `me-east-1` | AWS region |
 | `SQS_ENDPOINT` | no | _(empty)_ | Override for ElasticMQ |
 | `APP_MAXMESSAGES` | no | `10` | Max messages per receive |
 | `AWS_WAITTIMESECONDS` | no | `20` | SQS long-poll wait |

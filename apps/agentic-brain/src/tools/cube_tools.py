@@ -22,7 +22,7 @@ def fetch_cube_schema() -> str:
         headers["Authorization"] = f"Bearer {cube_client.token}"
         
     try:
-        with httpx.Client(timeout=10.0) as client:
+        with httpx.Client(timeout=1.0) as client:
             response = client.get(url, headers=headers)
             if response.status_code == 200:
                 meta = response.json().get("meta", {})

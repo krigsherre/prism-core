@@ -35,6 +35,7 @@ opentelemetry-api = "^1.22.0"
 opentelemetry-sdk = "^1.22.0"
 aiokafka = "^0.10.0"
 tenacity = ">=8.1.0,<9.0.0"
+langchain-ollama = "<1.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.0.0"

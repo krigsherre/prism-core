@@ -21,6 +21,14 @@ async def execute_cypher(query: str, tenant_id: str) -> str:
     Executes a Cypher read query against the Neo4j Knowledge Graph.
     The tenant_id will be automatically injected into your MATCH clauses for security.
     """
+    if isinstance(query, str) and query.strip().startswith("{"):
+        try:
+            parsed = json.loads(query)
+            if isinstance(parsed, dict) and "cypher" in parsed:
+                query = parsed["cypher"]
+        except Exception:
+            pass
+
     secure_query = inject_tenant_id_cypher(query, tenant_id)
     logger.info("Executing secure Cypher", secure_query=secure_query)
     
