@@ -34,6 +34,18 @@ cubes:
   - name: avg_gross_profit
     type: avg
     sql: gross_profit
+  - name: total_selling_and_marketing_expenses
+    type: sum
+    sql: selling_and_marketing_expenses
+  - name: avg_selling_and_marketing_expenses
+    type: avg
+    sql: selling_and_marketing_expenses
+  - name: total_general_and_administrative_expenses
+    type: sum
+    sql: general_and_administrative_expenses
+  - name: avg_general_and_administrative_expenses
+    type: avg
+    sql: general_and_administrative_expenses
   - name: total_sg_and_a_expenses
     type: sum
     sql: sg_and_a_expenses
@@ -46,12 +58,24 @@ cubes:
   - name: avg_r_and_d_expenses
     type: avg
     sql: r_and_d_expenses
+  - name: total_restructuring_and_other_charges
+    type: sum
+    sql: restructuring_and_other_charges
+  - name: avg_restructuring_and_other_charges
+    type: avg
+    sql: restructuring_and_other_charges
   - name: total_operating_expenses
     type: sum
     sql: operating_expenses
   - name: avg_operating_expenses
     type: avg
     sql: operating_expenses
+  - name: total_operating_income
+    type: sum
+    sql: operating_income
+  - name: avg_operating_income
+    type: avg
+    sql: operating_income
   - name: total_ebitda
     type: sum
     sql: ebitda
@@ -70,12 +94,24 @@ cubes:
   - name: avg_ebit
     type: avg
     sql: ebit
+  - name: total_interest_and_dividend_income
+    type: sum
+    sql: interest_and_dividend_income
+  - name: avg_interest_and_dividend_income
+    type: avg
+    sql: interest_and_dividend_income
   - name: total_interest_expense
     type: sum
     sql: interest_expense
   - name: avg_interest_expense
     type: avg
     sql: interest_expense
+  - name: total_other_non_operating_income_expense
+    type: sum
+    sql: other_non_operating_income_expense
+  - name: avg_other_non_operating_income_expense
+    type: avg
+    sql: other_non_operating_income_expense
   - name: total_profit_before_tax
     type: sum
     sql: profit_before_tax
@@ -106,6 +142,18 @@ cubes:
   - name: avg_eps_diluted
     type: avg
     sql: eps_diluted
+  - name: total_weighted_average_shares_basic
+    type: sum
+    sql: weighted_average_shares_basic
+  - name: avg_weighted_average_shares_basic
+    type: avg
+    sql: weighted_average_shares_basic
+  - name: total_weighted_average_shares_diluted
+    type: sum
+    sql: weighted_average_shares_diluted
+  - name: avg_weighted_average_shares_diluted
+    type: avg
+    sql: weighted_average_shares_diluted
   dimensions:
   - name: id
     type: string
@@ -132,15 +180,27 @@ cubes:
   - name: gross_profit
     type: number
     sql: gross_profit
+  - name: selling_and_marketing_expenses
+    type: number
+    sql: selling_and_marketing_expenses
+  - name: general_and_administrative_expenses
+    type: number
+    sql: general_and_administrative_expenses
   - name: sg_and_a_expenses
     type: number
     sql: sg_and_a_expenses
   - name: r_and_d_expenses
     type: number
     sql: r_and_d_expenses
+  - name: restructuring_and_other_charges
+    type: number
+    sql: restructuring_and_other_charges
   - name: operating_expenses
     type: number
     sql: operating_expenses
+  - name: operating_income
+    type: number
+    sql: operating_income
   - name: ebitda
     type: number
     sql: ebitda
@@ -150,9 +210,15 @@ cubes:
   - name: ebit
     type: number
     sql: ebit
+  - name: interest_and_dividend_income
+    type: number
+    sql: interest_and_dividend_income
   - name: interest_expense
     type: number
     sql: interest_expense
+  - name: other_non_operating_income_expense
+    type: number
+    sql: other_non_operating_income_expense
   - name: profit_before_tax
     type: number
     sql: profit_before_tax
@@ -168,6 +234,15 @@ cubes:
   - name: eps_diluted
     type: number
     sql: eps_diluted
+  - name: weighted_average_shares_basic
+    type: number
+    sql: weighted_average_shares_basic
+  - name: weighted_average_shares_diluted
+    type: number
+    sql: weighted_average_shares_diluted
+  - name: period
+    type: string
+    sql: period
   - name: additional_metadata
     type: string
     sql: CAST(additional_metadata AS TEXT)

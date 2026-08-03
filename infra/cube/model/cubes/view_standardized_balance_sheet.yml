@@ -10,6 +10,12 @@ cubes:
   - name: avg_cash_and_equivalents
     type: avg
     sql: cash_and_equivalents
+  - name: total_marketable_securities
+    type: sum
+    sql: marketable_securities
+  - name: avg_marketable_securities
+    type: avg
+    sql: marketable_securities
   - name: total_accounts_receivable
     type: sum
     sql: accounts_receivable
@@ -22,6 +28,12 @@ cubes:
   - name: avg_inventory
     type: avg
     sql: inventory
+  - name: total_prepaid_expenses_and_other_current_assets
+    type: sum
+    sql: prepaid_expenses_and_other_current_assets
+  - name: avg_prepaid_expenses_and_other_current_assets
+    type: avg
+    sql: prepaid_expenses_and_other_current_assets
   - name: total_total_current_assets
     type: sum
     sql: total_current_assets
@@ -34,12 +46,30 @@ cubes:
   - name: avg_property_plant_equipment
     type: avg
     sql: property_plant_equipment
+  - name: total_operating_lease_right_of_use_assets
+    type: sum
+    sql: operating_lease_right_of_use_assets
+  - name: avg_operating_lease_right_of_use_assets
+    type: avg
+    sql: operating_lease_right_of_use_assets
   - name: total_goodwill_and_intangibles
     type: sum
     sql: goodwill_and_intangibles
   - name: avg_goodwill_and_intangibles
     type: avg
     sql: goodwill_and_intangibles
+  - name: total_deferred_tax_assets
+    type: sum
+    sql: deferred_tax_assets
+  - name: avg_deferred_tax_assets
+    type: avg
+    sql: deferred_tax_assets
+  - name: total_other_non_current_assets
+    type: sum
+    sql: other_non_current_assets
+  - name: avg_other_non_current_assets
+    type: avg
+    sql: other_non_current_assets
   - name: total_total_assets
     type: sum
     sql: total_assets
@@ -52,12 +82,30 @@ cubes:
   - name: avg_accounts_payable
     type: avg
     sql: accounts_payable
+  - name: total_accrued_expenses_and_other_current_liabilities
+    type: sum
+    sql: accrued_expenses_and_other_current_liabilities
+  - name: avg_accrued_expenses_and_other_current_liabilities
+    type: avg
+    sql: accrued_expenses_and_other_current_liabilities
+  - name: total_deferred_revenue_current
+    type: sum
+    sql: deferred_revenue_current
+  - name: avg_deferred_revenue_current
+    type: avg
+    sql: deferred_revenue_current
   - name: total_short_term_debt
     type: sum
     sql: short_term_debt
   - name: avg_short_term_debt
     type: avg
     sql: short_term_debt
+  - name: total_operating_lease_liabilities_current
+    type: sum
+    sql: operating_lease_liabilities_current
+  - name: avg_operating_lease_liabilities_current
+    type: avg
+    sql: operating_lease_liabilities_current
   - name: total_total_current_liabilities
     type: sum
     sql: total_current_liabilities
@@ -70,18 +118,66 @@ cubes:
   - name: avg_long_term_debt
     type: avg
     sql: long_term_debt
+  - name: total_operating_lease_liabilities_non_current
+    type: sum
+    sql: operating_lease_liabilities_non_current
+  - name: avg_operating_lease_liabilities_non_current
+    type: avg
+    sql: operating_lease_liabilities_non_current
+  - name: total_deferred_revenue_non_current
+    type: sum
+    sql: deferred_revenue_non_current
+  - name: avg_deferred_revenue_non_current
+    type: avg
+    sql: deferred_revenue_non_current
+  - name: total_deferred_tax_liabilities
+    type: sum
+    sql: deferred_tax_liabilities
+  - name: avg_deferred_tax_liabilities
+    type: avg
+    sql: deferred_tax_liabilities
+  - name: total_other_non_current_liabilities
+    type: sum
+    sql: other_non_current_liabilities
+  - name: avg_other_non_current_liabilities
+    type: avg
+    sql: other_non_current_liabilities
   - name: total_total_liabilities
     type: sum
     sql: total_liabilities
   - name: avg_total_liabilities
     type: avg
     sql: total_liabilities
+  - name: total_common_stock
+    type: sum
+    sql: common_stock
+  - name: avg_common_stock
+    type: avg
+    sql: common_stock
+  - name: total_additional_paid_in_capital
+    type: sum
+    sql: additional_paid_in_capital
+  - name: avg_additional_paid_in_capital
+    type: avg
+    sql: additional_paid_in_capital
   - name: total_retained_earnings
     type: sum
     sql: retained_earnings
   - name: avg_retained_earnings
     type: avg
     sql: retained_earnings
+  - name: total_accumulated_other_comprehensive_income
+    type: sum
+    sql: accumulated_other_comprehensive_income
+  - name: avg_accumulated_other_comprehensive_income
+    type: avg
+    sql: accumulated_other_comprehensive_income
+  - name: total_treasury_stock
+    type: sum
+    sql: treasury_stock
+  - name: avg_treasury_stock
+    type: avg
+    sql: treasury_stock
   - name: total_total_shareholders_equity
     type: sum
     sql: total_shareholders_equity
@@ -102,45 +198,96 @@ cubes:
   - name: cash_and_equivalents
     type: number
     sql: cash_and_equivalents
+  - name: marketable_securities
+    type: number
+    sql: marketable_securities
   - name: accounts_receivable
     type: number
     sql: accounts_receivable
   - name: inventory
     type: number
     sql: inventory
+  - name: prepaid_expenses_and_other_current_assets
+    type: number
+    sql: prepaid_expenses_and_other_current_assets
   - name: total_current_assets
     type: number
     sql: total_current_assets
   - name: property_plant_equipment
     type: number
     sql: property_plant_equipment
+  - name: operating_lease_right_of_use_assets
+    type: number
+    sql: operating_lease_right_of_use_assets
   - name: goodwill_and_intangibles
     type: number
     sql: goodwill_and_intangibles
+  - name: deferred_tax_assets
+    type: number
+    sql: deferred_tax_assets
+  - name: other_non_current_assets
+    type: number
+    sql: other_non_current_assets
   - name: total_assets
     type: number
     sql: total_assets
   - name: accounts_payable
     type: number
     sql: accounts_payable
+  - name: accrued_expenses_and_other_current_liabilities
+    type: number
+    sql: accrued_expenses_and_other_current_liabilities
+  - name: deferred_revenue_current
+    type: number
+    sql: deferred_revenue_current
   - name: short_term_debt
     type: number
     sql: short_term_debt
+  - name: operating_lease_liabilities_current
+    type: number
+    sql: operating_lease_liabilities_current
   - name: total_current_liabilities
     type: number
     sql: total_current_liabilities
   - name: long_term_debt
     type: number
     sql: long_term_debt
+  - name: operating_lease_liabilities_non_current
+    type: number
+    sql: operating_lease_liabilities_non_current
+  - name: deferred_revenue_non_current
+    type: number
+    sql: deferred_revenue_non_current
+  - name: deferred_tax_liabilities
+    type: number
+    sql: deferred_tax_liabilities
+  - name: other_non_current_liabilities
+    type: number
+    sql: other_non_current_liabilities
   - name: total_liabilities
     type: number
     sql: total_liabilities
+  - name: common_stock
+    type: number
+    sql: common_stock
+  - name: additional_paid_in_capital
+    type: number
+    sql: additional_paid_in_capital
   - name: retained_earnings
     type: number
     sql: retained_earnings
+  - name: accumulated_other_comprehensive_income
+    type: number
+    sql: accumulated_other_comprehensive_income
+  - name: treasury_stock
+    type: number
+    sql: treasury_stock
   - name: total_shareholders_equity
     type: number
     sql: total_shareholders_equity
+  - name: period
+    type: string
+    sql: period
   - name: additional_metadata
     type: string
     sql: CAST(additional_metadata AS TEXT)

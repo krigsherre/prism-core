@@ -98,6 +98,16 @@ services:
     networks:
       - prism-network
 
+  reranker-server:
+    image: ghcr.io/huggingface/text-embeddings-inference:cpu-1.2
+    platform: linux/amd64
+    container_name: prism-reranker-server
+    command: --model-id BAAI/bge-reranker-base
+    ports:
+      - "8086:80"
+    networks:
+      - prism-network
+
   api-gateway:
     build:
       context: .
@@ -211,18 +221,42 @@ services:
         condition: service_started
       qdrant:
         condition: service_started
+      reranker-server:
+        condition: service_started
 
   web-dashboard:
     build:
       context: ./apps/web-dashboard
       args:
-        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8001}
-        NEXT_PUBLIC_GATEWAY_URL: ${NEXT_PUBLIC_GATEWAY_URL:-http://localhost:8080}
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-/api/brain}
+        NEXT_PUBLIC_GATEWAY_URL: ${NEXT_PUBLIC_GATEWAY_URL:-/api/gateway}
     container_name: prism-web-dashboard
     ports:
-      - "${WEB_DASHBOARD_PORT:-3000}:3000"
+      - "0.0.0.0:${WEB_DASHBOARD_PORT:-3000}:3000"
     env_file: .env
     networks:
       - prism-network
     depends_on:
       - agentic-brain
+
+  cube:
+    image: cubejs/cube:latest
+    container_name: prism-cube
+    ports:
+      - "4000:4000"
+      - "4001:3000"
+    environment:
+      CUBEJS_DB_TYPE: postgres
+      CUBEJS_DB_HOST: postgres
+      CUBEJS_DB_NAME: ${POSTGRES_DB:-prism}
+      CUBEJS_DB_USER: ${POSTGRES_USER:-postgres}
+      CUBEJS_DB_PASS: ${POSTGRES_PASSWORD:-postgres}
+      CUBEJS_API_SECRET: ${CUBEJS_API_SECRET:-secret}
+      CUBEJS_DEV_MODE: "true"
+    volumes:
+      - ./infra/cube:/cube/conf
+    networks:
+      - prism-network
+    depends_on:
+      postgres:
+        condition: service_healthy

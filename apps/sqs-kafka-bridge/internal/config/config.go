@@ -20,6 +20,8 @@ type AppConfig struct {
 type AWSConfig struct {
 	SQSQueueURL     string
 	SQSEndpoint     string
+	AccessKeyID     string
+	SecretAccessKey string
 	Region          string
 	WaitTimeSeconds int32
 }
@@ -42,6 +44,8 @@ func LoadConfig() (*Config, error) {
 	_ = v.BindEnv("app.maxmessages", "APP_MAXMESSAGES")
 	_ = v.BindEnv("aws.sqsqueueurl", "SQS_QUEUE_URL")
 	_ = v.BindEnv("aws.sqsendpoint", "SQS_ENDPOINT")
+	_ = v.BindEnv("aws.accesskeyid", "AWS_ACCESS_KEY_ID")
+	_ = v.BindEnv("aws.secretaccesskey", "AWS_SECRET_ACCESS_KEY")
 	_ = v.BindEnv("aws.region", "AWS_REGION")
 	_ = v.BindEnv("aws.waittimeseconds", "AWS_WAITTIMESECONDS")
 	_ = v.BindEnv("kafka.broker", "KAFKA_BROKER")

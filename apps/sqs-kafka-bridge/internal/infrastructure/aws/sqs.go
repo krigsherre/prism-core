@@ -2,6 +2,7 @@ package aws
 
 import (
 	"context"
+	"strings"
 
 	cfg "sqs-kafka-bridge/internal/config"
 
@@ -30,19 +31,30 @@ type SQSAdapter struct {
 }
 
 func NewSQSAdapter(ctx context.Context, appConfig *cfg.Config) (*SQSAdapter, error) {
+	key := appConfig.AWS.AccessKeyID
+	secret := appConfig.AWS.SecretAccessKey
+	if key == "" {
+		key = "test"
+	}
+	if secret == "" {
+		secret = "test"
+	}
+
 	awsCfg, err := config.LoadDefaultConfig(ctx,
 		config.WithRegion(appConfig.AWS.Region),
-		config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider("test", "test", "")),
+		config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(key, secret, "")),
 	)
 	if err != nil {
 		return nil, err
 	}
 
-	var sqsClient *sqs.Client
 	if appConfig.AWS.SQSEndpoint != "" {
 		awsCfg.BaseEndpoint = aws_sdk.String(appConfig.AWS.SQSEndpoint)
+	} else if !strings.Contains(appConfig.AWS.SQSQueueURL, "amazonaws.com") {
+		awsCfg.BaseEndpoint = aws_sdk.String("http://elasticmq:9324")
 	}
-	sqsClient = sqs.NewFromConfig(awsCfg)
+
+	sqsClient := sqs.NewFromConfig(awsCfg)
 
 	return &SQSAdapter{
 		client:          sqsClient,

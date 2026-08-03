@@ -6,6 +6,7 @@ COPY packages/contracts/gen/go packages/contracts/gen/go
 
 WORKDIR /app/apps/triage-worker
 COPY apps/triage-worker/go.mod apps/triage-worker/go.sum ./
+ENV GOPROXY=https://proxy.golang.org,direct
 RUN --mount=type=cache,target=/go/pkg/mod go mod download
 
 COPY apps/triage-worker/ .

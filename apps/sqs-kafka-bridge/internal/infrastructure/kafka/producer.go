@@ -25,9 +25,10 @@ type KafkaProducer struct {
 
 func NewKafkaProducer(config *cfg.Config) *KafkaProducer {
 	writer := &kafka.Writer{
-		Addr:     kafka.TCP(config.Kafka.Broker),
-		Topic:    config.Kafka.Topic,
-		Balancer: &kafka.LeastBytes{},
+		Addr:                   kafka.TCP(config.Kafka.Broker),
+		Topic:                  config.Kafka.Topic,
+		Balancer:               &kafka.LeastBytes{},
+		AllowAutoTopicCreation: true,
 	}
 	return &KafkaProducer{writer: writer}
 }

@@ -10,12 +10,42 @@ cubes:
   - name: avg_net_cash_from_operating_activities
     type: avg
     sql: net_cash_from_operating_activities
+  - name: total_share_based_compensation
+    type: sum
+    sql: share_based_compensation
+  - name: avg_share_based_compensation
+    type: avg
+    sql: share_based_compensation
+  - name: total_depreciation_and_amortization_cf
+    type: sum
+    sql: depreciation_and_amortization_cf
+  - name: avg_depreciation_and_amortization_cf
+    type: avg
+    sql: depreciation_and_amortization_cf
+  - name: total_change_in_operating_assets_liabilities
+    type: sum
+    sql: change_in_operating_assets_liabilities
+  - name: avg_change_in_operating_assets_liabilities
+    type: avg
+    sql: change_in_operating_assets_liabilities
   - name: total_capital_expenditure
     type: sum
     sql: capital_expenditure
   - name: avg_capital_expenditure
     type: avg
     sql: capital_expenditure
+  - name: total_purchases_of_investments
+    type: sum
+    sql: purchases_of_investments
+  - name: avg_purchases_of_investments
+    type: avg
+    sql: purchases_of_investments
+  - name: total_sales_maturities_of_investments
+    type: sum
+    sql: sales_maturities_of_investments
+  - name: avg_sales_maturities_of_investments
+    type: avg
+    sql: sales_maturities_of_investments
   - name: total_net_cash_from_investing_activities
     type: sum
     sql: net_cash_from_investing_activities
@@ -34,18 +64,42 @@ cubes:
   - name: avg_debt_issued_or_repaid
     type: avg
     sql: debt_issued_or_repaid
+  - name: total_repurchase_of_common_stock
+    type: sum
+    sql: repurchase_of_common_stock
+  - name: avg_repurchase_of_common_stock
+    type: avg
+    sql: repurchase_of_common_stock
   - name: total_net_cash_from_financing_activities
     type: sum
     sql: net_cash_from_financing_activities
   - name: avg_net_cash_from_financing_activities
     type: avg
     sql: net_cash_from_financing_activities
+  - name: total_effect_of_exchange_rate_on_cash
+    type: sum
+    sql: effect_of_exchange_rate_on_cash
+  - name: avg_effect_of_exchange_rate_on_cash
+    type: avg
+    sql: effect_of_exchange_rate_on_cash
   - name: total_net_change_in_cash
     type: sum
     sql: net_change_in_cash
   - name: avg_net_change_in_cash
     type: avg
     sql: net_change_in_cash
+  - name: total_cash_beginning_of_period
+    type: sum
+    sql: cash_beginning_of_period
+  - name: avg_cash_beginning_of_period
+    type: avg
+    sql: cash_beginning_of_period
+  - name: total_cash_end_of_period
+    type: sum
+    sql: cash_end_of_period
+  - name: avg_cash_end_of_period
+    type: avg
+    sql: cash_end_of_period
   dimensions:
   - name: id
     type: string
@@ -60,9 +114,24 @@ cubes:
   - name: net_cash_from_operating_activities
     type: number
     sql: net_cash_from_operating_activities
+  - name: share_based_compensation
+    type: number
+    sql: share_based_compensation
+  - name: depreciation_and_amortization_cf
+    type: number
+    sql: depreciation_and_amortization_cf
+  - name: change_in_operating_assets_liabilities
+    type: number
+    sql: change_in_operating_assets_liabilities
   - name: capital_expenditure
     type: number
     sql: capital_expenditure
+  - name: purchases_of_investments
+    type: number
+    sql: purchases_of_investments
+  - name: sales_maturities_of_investments
+    type: number
+    sql: sales_maturities_of_investments
   - name: net_cash_from_investing_activities
     type: number
     sql: net_cash_from_investing_activities
@@ -72,12 +141,27 @@ cubes:
   - name: debt_issued_or_repaid
     type: number
     sql: debt_issued_or_repaid
+  - name: repurchase_of_common_stock
+    type: number
+    sql: repurchase_of_common_stock
   - name: net_cash_from_financing_activities
     type: number
     sql: net_cash_from_financing_activities
+  - name: effect_of_exchange_rate_on_cash
+    type: number
+    sql: effect_of_exchange_rate_on_cash
   - name: net_change_in_cash
     type: number
     sql: net_change_in_cash
+  - name: cash_beginning_of_period
+    type: number
+    sql: cash_beginning_of_period
+  - name: cash_end_of_period
+    type: number
+    sql: cash_end_of_period
+  - name: period
+    type: string
+    sql: period
   - name: additional_metadata
     type: string
     sql: CAST(additional_metadata AS TEXT)

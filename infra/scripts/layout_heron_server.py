@@ -18,9 +18,6 @@ processor = None
 model = None
 if torch.cuda.is_available():
     device = "cuda"
-# Force CPU on Apple Silicon because Hugging Face RT-DETR v2 
-# hardcodes torch.float64 tensors during forward pass, which crashes MPS.
-# (CPU inference for this tiny model is still extremely fast on M1 Max).
 else:
     device = "cpu"
 id2label = {}
@@ -63,8 +60,7 @@ def extract_layout(req: ImageRequest):
         with torch.no_grad():
             outputs = model(**inputs)
 
-        # Move outputs to CPU to avoid Apple Silicon (MPS) float64 limitations
-        # during object detection post-processing
+        # Move outputs to CPU for post-processing
         if hasattr(outputs, "to"):
             outputs = outputs.to("cpu")
 
