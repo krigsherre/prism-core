@@ -171,8 +171,11 @@ Idempotent upserts `(document_id, node_id, row_index)` land in Postgres first. V
 
 Instead of pure LLM fine-tuning (which risks memorizing numbers), Prism Core uses:
 
-1. **Fine-tuned Layout VLM** — SmolDocling-256M fine-tuned for financial table bounding boxes and multi-column reading order.
-2. **Taxonomy & Schema Fine-Tuning** — Registry aligned with US-GAAP and Ind AS / Schedule III.
+1. **Three-Tier Extraction Stack** — compute is matched to content complexity, not applied uniformly:
+   - **PyMuPDF** (CPU) — digitally encoded text, prose, headings extracted for free from the PDF text layer
+   - **SmolDocling-256M / Docling** (moderate GPU) — layout detection, reading order, and document DOM construction for structural context
+   - **PaddleOCR-VL** (heavy GPU) — complex financial table grids and multi-header tables; only invoked for hard visual regions where the other two tiers fall short
+2. **Taxonomy & Schema Fine-Tuning** — Registry aligned with US-GAAP and Ind AS / Schedule III, with 110+ domain aliases covering financial terminology across jurisdictions.
 3. **Guided Decoding** — Strict Pydantic JSON schema constraints during LLM decoding, guaranteeing 100% structural precision on unseen filings.
 
 </details>
