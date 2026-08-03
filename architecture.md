@@ -10,7 +10,7 @@
 
 <p align="center">
   <a href="README.md">🏠 README</a> ·
-  <a href="decisions.md">🗂 ADRs</a> ·
+  <a href="decisions.md">🗂 Decisions</a> ·
   <a href="research.md">📚 Research</a> ·
   <a href="infra/README.md">🔧 Infra</a>
 </p>
