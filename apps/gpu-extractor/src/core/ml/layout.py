@@ -1,3 +1,4 @@
+import asyncio
 from typing import List, Dict, Any, Tuple, Optional, cast
 import fitz
 import structlog
@@ -16,14 +17,10 @@ class LayoutSlicer:
         self.logger = structlog.get_logger(__name__)
         self.endpoint_url = settings.docling_layout_url
 
-    def slice_page(self, page: fitz.Page) -> List[Dict[str, Any]]:
-        """
-        Returns a list of boxes:
-        [{'type': 'TEXT'|'IMAGE'|'TABLE', 'bbox': [x0, y0, x1, y1], 'content': str|None}]
-        """
+    async def slice_page_with_b64_async(self, page: fitz.Page, b64_image: str, pix_w: int, pix_h: int) -> List[Dict[str, Any]]:
         boxes = []
         if self.endpoint_url:
-            boxes = self._attempt_docling_slicing(page)
+            boxes = await self._attempt_docling_slicing_b64_async(page, b64_image, pix_w, pix_h)
             
         if not boxes:
             self.logger.warning("Docling API not reached or returned no results, falling back to basic PyMuPDF slicing.")
@@ -31,27 +28,23 @@ class LayoutSlicer:
             
         return self._sort_boxes_reading_order(boxes)
 
-
-    def _attempt_docling_slicing(self, page: fitz.Page) -> List[Dict[str, Any]]:
+    async def slice_page_async(self, page: fitz.Page) -> List[Dict[str, Any]]:
         pix = page.get_pixmap(dpi=150)
-        b64_image = self._convert_page_to_base64(pix)
+        b64_image = await asyncio.to_thread(self._convert_page_to_base64, pix)
+        return await self.slice_page_with_b64_async(page, b64_image, pix.width, pix.height)
+
+    async def _attempt_docling_slicing_b64_async(self, page: fitz.Page, b64_image: str, pix_w: int, pix_h: int) -> List[Dict[str, Any]]:
         
-        results = self._fetch_docling_layout(b64_image)
+        results = await self._fetch_docling_layout_async(b64_image)
         if not results:
             return []
             
-        return self._parse_docling_results(results, pix, page)
+        return self._parse_docling_results(results, pix_w, pix_h, page)
 
-    def _convert_page_to_base64(self, pix: fitz.Pixmap) -> str:
-        img = Image.frombytes("RGB", (pix.width, pix.height), pix.samples)
-        buffered = io.BytesIO()
-        img.save(buffered, format="PNG")
-        return base64.b64encode(buffered.getvalue()).decode("utf-8")
-
-    def _fetch_docling_layout(self, b64_image: str) -> Optional[List[Dict[str, Any]]]:
+    async def _fetch_docling_layout_async(self, b64_image: str) -> Optional[List[Dict[str, Any]]]:
         try:
-            with httpx.Client(timeout=30.0) as client:
-                resp = client.post(
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                resp = await client.post(
                     f"{self.endpoint_url}/layout",
                     json={"image_base64": b64_image, "threshold": 0.3}
                 )
@@ -63,10 +56,16 @@ class LayoutSlicer:
             self.logger.error(f"Failed to call Layout API: {e}")
         return None
 
-    def _parse_docling_results(self, results: List[Dict[str, Any]], pix: fitz.Pixmap, page: fitz.Page) -> List[Dict[str, Any]]:
+    def _convert_page_to_base64(self, pix: fitz.Pixmap) -> str:
+        img = Image.frombytes("RGB", (pix.width, pix.height), pix.samples)
+        buffered = io.BytesIO()
+        img.save(buffered, format="JPEG", quality=90)
+        return base64.b64encode(buffered.getvalue()).decode("utf-8")
+
+    def _parse_docling_results(self, results: List[Dict[str, Any]], pix_w: int, pix_h: int, page: fitz.Page) -> List[Dict[str, Any]]:
         boxes = []
-        scale_x = page.rect.width / pix.width
-        scale_y = page.rect.height / pix.height
+        scale_x = page.rect.width / pix_w
+        scale_y = page.rect.height / pix_h
         
         for item in results:
             label_name = item["label"]
