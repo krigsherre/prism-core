@@ -22,6 +22,7 @@ class DocumentRouter:
         self.sql_repo = sql_repo
         self.qdrant_repo = qdrant_repo
         self.embeddings = None
+        self._http_client = httpx.AsyncClient(timeout=10.0)
 
     async def _real_embedding(self, text: str):
         safe_text = text[:2000] if text else ""
@@ -29,17 +30,16 @@ class DocumentRouter:
             return [0.0] * 384
             
         try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
-                response = await client.post(
-                    "http://embeddings-server:80/embed",
-                    json={"inputs": safe_text}
-                )
-                if response.status_code == 200:
-                    data = response.json()
-                    if isinstance(data, list) and len(data) > 0:
-                        if isinstance(data[0], list):
-                            return data[0]
-                        return data
+            response = await self._http_client.post(
+                "http://embeddings-server:80/embed",
+                json={"inputs": safe_text}
+            )
+            if response.status_code == 200:
+                data = response.json()
+                if isinstance(data, list) and len(data) > 0:
+                    if isinstance(data[0], list):
+                        return data[0]
+                    return data
         except Exception as e:
             logger.error("TEI embedding failed", error=str(e))
             
@@ -595,19 +595,30 @@ class DocumentRouter:
             metrics["vector_mapped"] = True
             
             if node.type == dom_pb2.NODE_TYPE_TEXT and producer:
-                graph_payload = {
-                    "tenant_id": tenant_id, "document_id": document_id, "node_id": node.id,
-                    "text_content": node.content, "parent_section_text": full_context,
-                    "source_page": prov["page_number"], "source_bbox": prov["bounding_box"],
-                    "user_id": user_id
-                }
-                try:
-                    await producer.send_and_wait("graph_extraction_tasks", key=document_id.encode("utf-8"), value=json.dumps(graph_payload).encode("utf-8"))
-                    logger.info("Routed text node to graph_extraction_tasks", node_id=node.id)
-                    metrics["graph_mapped"] = True
-                    metrics["graph_nodes_count"] += 1
-                except Exception as e:
-                    logger.error("Failed to route node to Graph Agent", error=str(e), node_id=node.id)
+                text = node.content or ""
+                high_signal_patterns = [
+                    r"related\s+party", r"subsidiary", r"holding\s+company", r"joint\s+venture",
+                    r"director", r"key\s+managerial", r"kmp", r"auditor", r"guarantee",
+                    r"facility\s+agreement", r"borrowing", r"acquisition", r"merger", r"amalgamation"
+                ]
+                import re
+                is_high_signal = len(text.strip()) >= 50 and any(re.search(pat, text, re.IGNORECASE) for pat in high_signal_patterns)
+
+                if is_high_signal:
+                    graph_payload = {
+                        "tenant_id": tenant_id, "document_id": document_id, "node_id": node.id,
+                        "text_content": node.content, "parent_section_text": full_context,
+                        "source_page": prov["page_number"], "source_bbox": prov["bounding_box"],
+                        "user_id": user_id
+                    }
+                    try:
+                        await producer.send_and_wait("graph_extraction_tasks", key=document_id.encode("utf-8"), value=json.dumps(graph_payload).encode("utf-8"))
+                        logger.info("Routed text node to graph_extraction_tasks", node_id=node.id)
+                        metrics["graph_mapped"] = True
+                        metrics["graph_nodes_count"] += 1
+                        metrics["graph_nodes_count"] += 1
+                    except Exception as e:
+                        logger.error("Failed to route node to Graph Agent", error=str(e), node_id=node.id)
                     
         except Exception as e:
             logger.error("Failed to route node to Qdrant", error=str(e), node_id=node.id)
