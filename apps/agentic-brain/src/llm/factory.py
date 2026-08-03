@@ -11,8 +11,6 @@ from enum import Enum
 
 T = TypeVar("T", bound=BaseModel)
 
-# Providers that natively support tool/function calling via OpenAI-compatible schema.
-# These can safely use .with_structured_output() directly.
 _TOOL_CALLING_PROVIDERS = {"openai", "anthropic", "google", "vllm"}
 
 class ModelTier(Enum):
@@ -30,7 +28,7 @@ class LLMFactory:
     def _resolve(tier: ModelTier):
         """Return (provider, model_name, temperature) from environment."""
         default_provider = os.environ.get("LLM_PROVIDER", "openai").lower()
-        default_model = os.environ.get("LLM_MODEL", "qwen2.5:14b")
+        default_model = os.environ.get("LLM_MODEL", "qwen2.5:14b-instruct-q8_0 ")
         if tier == ModelTier.FRONTIER:
             provider = os.environ.get("FRONTIER_LLM_PROVIDER", default_provider).lower()
             model_name = os.environ.get("FRONTIER_LLM_MODEL", default_model)
@@ -55,8 +53,6 @@ class LLMFactory:
             api_key = os.environ.get("ANTHROPIC_API_KEY") or ""
             if not api_key:
                 raise ValueError("ANTHROPIC_API_KEY is not set")
-            # For Anthropic, usage metadata is usually streamed by default in newer versions, 
-            # or requires stream_usage=True if available. We will pass it in kwargs just in case.
             return ChatAnthropic(model=model_name, api_key=api_key, temperature=temperature, streaming=True)
         elif provider == "google":
             return ChatGoogleGenerativeAI(model=model_name, temperature=temperature, streaming=True)
@@ -103,7 +99,6 @@ class LLMFactory:
         if provider in _TOOL_CALLING_PROVIDERS:
             return llm.with_structured_output(schema)
 
-        # ── JSON + PydanticOutputParser fallback for local models ─────────────
         parser = PydanticOutputParser(pydantic_object=schema)
         format_instructions = parser.get_format_instructions()
 
