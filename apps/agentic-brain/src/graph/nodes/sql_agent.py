@@ -11,28 +11,41 @@ from tools.postgres_tools import list_exact_views, query_exact_rows
 logger = structlog.get_logger(__name__)
 
 
-class SQLPlanOutput(BaseModel):
-    """Plan for either exact Postgres view lookup or Cube aggregation SQL."""
-
+class SingleSQLQuery(BaseModel):
+    """Spec for a single exact view lookup or Cube query."""
     mode: Literal["exact", "cube"] = Field(
-        description=(
-            "'exact' for row/cell-accurate values from Postgres views; "
-            "'cube' for aggregations/rollups via Cube.js"
-        )
+        description="'exact' for row values from Postgres views; 'cube' for aggregations via Cube.js"
     )
     view_name: Optional[str] = Field(
         default=None,
-        description="For mode=exact: allowlisted view_* name from list_exact_views",
+        description="For mode=exact: view_* name from list_exact_views",
     )
     filters_json: str = Field(
         default="{}",
-        description='For mode=exact: JSON object of equality filters, e.g. {"vendor_name":"Acme"}',
+        description='For mode=exact: JSON object of equality filters, e.g. {"sys_document_id":"..."}',
     )
     sql: Optional[str] = Field(
         default=None,
-        description="For mode=cube: valid ANSI SQL against Cube.js. No markdown fences.",
+        description="For mode=cube: valid ANSI SQL against Cube.js",
     )
-    reasoning: str = Field(default="", description="Brief reason for choosing exact vs cube")
+    purpose: str = Field(default="", description="e.g. Income Statement metrics, Balance Sheet liquidity")
+
+
+class MultiSQLPlanOutput(BaseModel):
+    """Plan containing one or more parallel queries to gather complete financial data."""
+    queries: list[SingleSQLQuery] = Field(
+        description="List of 1 to 4 queries to execute in parallel across financial tables"
+    )
+    reasoning: str = Field(default="", description="Brief reason for selected queries")
+
+
+class SQLPlanOutput(BaseModel):
+    """Legacy single plan fallback."""
+    mode: Literal["exact", "cube"] = Field(default="exact")
+    view_name: Optional[str] = Field(default=None)
+    filters_json: str = Field(default="{}")
+    sql: Optional[str] = Field(default=None)
+    reasoning: str = Field(default="")
 
 
 async def generate_sql_node(state: InteractionState) -> dict:
@@ -55,15 +68,32 @@ async def generate_sql_node(state: InteractionState) -> dict:
     from core.db import db_client
     tenant_id = state.get("tenant_id", "default-tenant")
     docs = await db_client.fetch_tenant_documents(tenant_id)
-    doc_catalog = "\n".join([
-        f"- [ID: {d['document_id']}] File: {d['filename']} | Company: {d.get('company_name')} ({d.get('ticker')}) | Period: {d.get('fiscal_period')}"
-        for d in docs
-    ])
 
-    llm = LLMFactory.get_structured_llm(SQLPlanOutput, ModelTier.FRONTIER)
+    table_map = {}
+    if db_client.pool:
+        try:
+            async with db_client.pool.acquire() as conn:
+                doc_tables = await conn.fetch(
+                    "SELECT document_id, ARRAY_AGG(DISTINCT target_table) as tables FROM extracted_tables WHERE tenant_id = $1 GROUP BY document_id",
+                    tenant_id
+                )
+                table_map = {r["document_id"]: [t for t in (r["tables"] or []) if t] for r in doc_tables}
+        except Exception as e:
+            logger.warning("Could not fetch document table mapping for catalog", error=str(e))
+
+    doc_catalog_lines = []
+    for d in docs:
+        doc_id = d["document_id"]
+        t_list = table_map.get(doc_id) or ["standardized_balance_sheet"]
+        doc_catalog_lines.append(
+            f"- [ID: {doc_id}] File: {d['filename']} | Company: {d.get('company_name')} ({d.get('ticker')}) | Period: {d.get('fiscal_period')} | Available Tables: {', '.join(t_list)}"
+        )
+    doc_catalog = "\n".join(doc_catalog_lines)
+
+    llm = LLMFactory.get_structured_llm(MultiSQLPlanOutput, ModelTier.FRONTIER)
     
     system_prompt = f"""You are an expert SQL planner for Agentic Brain.
-Your goal is to formulate a plan to retrieve exact financial data from the database.
+Your goal is to formulate a plan containing 1 to 4 parallel queries to retrieve complete financial data from the database.
 
 AVAILABLE POSTGRES VIEWS (mode=exact):
 {postgres_views}
@@ -72,10 +102,10 @@ AVAILABLE DOCUMENTS IN KNOWLEDGE BASE:
 {doc_catalog}
 Use these IDs to filter `sys_document_id` if the user asks for a specific company, ticker, or document.
 
-If the user wants aggregations, use mode=cube if available.
+If the user wants aggregations or calculated ratios, use mode=cube if available.
 CUBE SCHEMA AVAILABLE: {has_cube}
 
-You must return a valid SQLPlanOutput. For mode=exact, provide 'view_name' and 'filters_json' (e.g. {{"sys_document_id": "uuid-here"}}).
+For complex questions, return MULTIPLE queries in `queries` (e.g. one for Income Statement, one for Balance Sheet) to gather complete financial context.
 """
     try:
         response = await llm.ainvoke([
@@ -83,20 +113,39 @@ You must return a valid SQLPlanOutput. For mode=exact, provide 'view_name' and '
             HumanMessage(content=user_msg)
         ])
         
+        queries_list = []
+        if hasattr(response, "queries") and response.queries:
+            for q in response.queries:
+                queries_list.append({
+                    "mode": q.mode,
+                    "view_name": q.view_name,
+                    "filters_json": q.filters_json or "{}",
+                    "sql": q.sql or "",
+                    "purpose": q.purpose or ""
+                })
+        else:
+            queries_list = [{
+                "mode": getattr(response, "mode", "exact"),
+                "view_name": getattr(response, "view_name", "extracted_tables"),
+                "filters_json": getattr(response, "filters_json", "{}"),
+                "sql": getattr(response, "sql", ""),
+                "purpose": "Primary financial metrics"
+            }]
+            
         plan = {
-            "mode": response.mode,
-            "view_name": response.view_name,
-            "filters_json": response.filters_json or "{}",
-            "sql": response.sql or "",
-            "reasoning": response.reasoning or "LLM generation successful"
+            "queries": queries_list,
+            "reasoning": getattr(response, "reasoning", "LLM generation successful")
         }
     except Exception as e:
         logger.error("SQL Planner LLM failed", error=str(e))
         plan = {
-            "mode": "exact",
-            "view_name": "extracted_tables",
-            "filters_json": "{}",
-            "sql": "",
+            "queries": [{
+                "mode": "exact",
+                "view_name": "extracted_tables",
+                "filters_json": "{}",
+                "sql": "",
+                "purpose": "Fallback query"
+            }],
             "reasoning": "Fallback due to LLM error",
         }
 
@@ -124,14 +173,21 @@ def _is_aggregation_intent(user_msg: str) -> bool:
 
 def _parse_plan(sql_query: str) -> dict:
     if not sql_query:
-        return {"mode": "exact", "view_name": "extracted_tables", "sql": ""}
+        return {"mode": "exact", "queries": [{"mode": "exact", "view_name": "extracted_tables", "sql": ""}]}
     try:
         parsed = json.loads(sql_query)
-        if isinstance(parsed, dict) and "mode" in parsed:
-            return parsed
+        if isinstance(parsed, dict):
+            if "queries" in parsed and isinstance(parsed["queries"], list):
+                out = dict(parsed)
+                if parsed["queries"] and isinstance(parsed["queries"][0], dict):
+                    out.setdefault("mode", parsed["queries"][0].get("mode", "exact"))
+                    out.setdefault("view_name", parsed["queries"][0].get("view_name", ""))
+                return out
+            if "mode" in parsed:
+                return {"mode": parsed["mode"], "view_name": parsed.get("view_name", ""), "queries": [parsed]}
     except (json.JSONDecodeError, TypeError):
         pass
-    return {"mode": "cube", "sql": sql_query}
+    return {"mode": "cube", "sql": sql_query, "queries": [{"mode": "cube", "sql": sql_query}]}
 
 
 def _build_references_from_exact(result_json: str) -> list:
@@ -140,19 +196,27 @@ def _build_references_from_exact(result_json: str) -> list:
         data = json.loads(result_json)
     except (json.JSONDecodeError, TypeError):
         return refs
-    for row in data.get("rows") or []:
-        doc_id = row.get("sys_document_id")
-        page = row.get("source_page")
+    
+    rows = data.get("rows") if isinstance(data, dict) else (data if isinstance(data, list) else [])
+    for row in rows or []:
+        if not isinstance(row, dict):
+            continue
+        doc_id = row.get("sys_document_id") or row.get("document_id")
+        page = row.get("source_page", 1)
         node_id = row.get("sys_node_id")
+        filename = row.get("sys_filename", "Document")
+        company = row.get("sys_company_name", "")
         if not doc_id:
             continue
         refs.append(
             {
                 "document_id": doc_id,
+                "filename": filename,
+                "company_name": company,
                 "node_id": node_id,
                 "page": page,
                 "source": "postgres_exact",
-                "view": data.get("view"),
+                "view": data.get("view") if isinstance(data, dict) else "",
             }
         )
     return refs[:20]
@@ -160,66 +224,75 @@ def _build_references_from_exact(result_json: str) -> list:
 
 def execute_sql_node(state: InteractionState) -> dict:
     """
-    Executes the planned SQL (exact Postgres view or Cube aggregation).
-    On failure, increments retries for Reflexion.
+    Executes the planned SQL queries (exact Postgres view or Cube aggregation).
+    Supports parallel batch execution of multiple queries via multi_query plan.
     """
     plan = _parse_plan(state.get("sql_query", ""))
     tenant_id = state.get("tenant_id", "default-tenant")
     document_id = state.get("document_id") or ""
-    mode = plan.get("mode", "exact")
-    logger.info("Executing SQL plan", mode=mode, plan=plan)
+    queries = plan.get("queries") or [{"mode": "exact", "view_name": "extracted_tables"}]
+    logger.info("Executing SQL plan", query_count=len(queries), plan=plan)
 
-    try:
-        if mode == "exact":
-            view_name = plan.get("view_name") or "extracted_tables"
-            filters_json = plan.get("filters_json") or "{}"
-            result = query_exact_rows.invoke(
-                {
-                    "view_name": view_name,
-                    "tenant_id": tenant_id,
-                    "document_id": document_id,
-                    "filters_json": filters_json,
-                    "limit": 100,
-                }
-            )
-        else:
-            sql_to_run = plan.get("sql") or ""
-            result = execute_cube_sql.invoke({"query": sql_to_run, "tenant_id": tenant_id})
-            if isinstance(result, str) and (
-                "Connection refused" in result
-                or "Network Error" in result
-                or "SQL Error" in result
-            ):
-                logger.warning("Cube failed — falling back to exact extracted_tables", error=result)
+    combined_results = []
+    all_references = []
+
+    for q in queries:
+        mode = q.get("mode", "exact")
+        purpose = q.get("purpose", "")
+        try:
+            if mode == "exact":
+                view_name = q.get("view_name") or "extracted_tables"
+                filters_json = q.get("filters_json") or "{}"
                 result = query_exact_rows.invoke(
                     {
-                        "view_name": plan.get("view_name") or "extracted_tables",
+                        "view_name": view_name,
                         "tenant_id": tenant_id,
                         "document_id": document_id,
-                        "filters_json": plan.get("filters_json") or "{}",
+                        "filters_json": filters_json,
                         "limit": 100,
                     }
                 )
-                mode = "exact"
+            else:
+                sql_to_run = q.get("sql") or ""
+                result = execute_cube_sql.invoke({"query": sql_to_run, "tenant_id": tenant_id})
+                if isinstance(result, str) and (
+                    "Connection refused" in result
+                    or "Network Error" in result
+                    or "SQL Error" in result
+                ):
+                    logger.warning("Cube failed — falling back to exact extracted_tables", error=result)
+                    result = query_exact_rows.invoke(
+                        {
+                            "view_name": q.get("view_name") or "extracted_tables",
+                            "tenant_id": tenant_id,
+                            "document_id": document_id,
+                            "filters_json": q.get("filters_json") or "{}",
+                            "limit": 100,
+                        }
+                    )
 
-        if isinstance(result, str) and "SQL Error" in result:
-            logger.warning("SQL Execution Failed", error=result, mode=mode)
-            return {
-                "error_message": result,
-                "retries": 1,
-            }
+            if isinstance(result, str) and "SQL Error" in result:
+                logger.warning("SQL Execution Failed for query", purpose=purpose, error=result)
+                continue
 
-        references = _build_references_from_exact(result) if mode == "exact" else []
+            combined_results.append({
+                "purpose": purpose,
+                "view": q.get("view_name"),
+                "result": result
+            })
+            all_references.extend(_build_references_from_exact(result))
 
+        except Exception as e:
+            logger.error("SQL Tool crashed for query", purpose=purpose, error=str(e))
+
+    if not combined_results:
         return {
-            "error_message": "",
-            "sql_result": result,
-            "references": references,
-        }
-
-    except Exception as e:
-        logger.error("SQL Tool crashed", error=str(e))
-        return {
-            "error_message": str(e),
+            "error_message": "All SQL queries failed to execute.",
             "retries": 1,
         }
+
+    return {
+        "error_message": "",
+        "sql_result": json.dumps(combined_results, indent=2, default=str),
+        "references": all_references[:30],
+    }

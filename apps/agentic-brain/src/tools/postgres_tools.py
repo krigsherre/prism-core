@@ -48,31 +48,24 @@ def select_by_mapping_priority(
     rows: List[Dict[str, Any]],
 ) -> tuple[List[Dict[str, Any]], str]:
     """
-    Prefer MAPPED rows when any exist; otherwise NEEDS_REVIEW; else remaining rows.
-    Annotates each returned row with trust_level for downstream synthesizers.
+    Selects highest trust rows (MAPPED over NEEDS_REVIEW over others).
+    Annotates each returned row with trust_level.
     """
     if not rows:
         return [], _TRUST_EMPTY
 
     mapped = [r for r in rows if r.get("mapping_status") == "MAPPED"]
     if mapped:
-        trust = _TRUST_VERIFIED
-        chosen = mapped
-    else:
-        review = [r for r in rows if r.get("mapping_status") == "NEEDS_REVIEW"]
-        if review:
-            trust = _TRUST_PROVISIONAL
-            chosen = review
-        else:
-            trust = _TRUST_UNVERIFIED
-            chosen = list(rows)
+        annotated = [dict(r, trust_level=_TRUST_VERIFIED) for r in mapped]
+        return annotated, _TRUST_VERIFIED
 
-    annotated: List[Dict[str, Any]] = []
-    for row in chosen:
-        item = dict(row)
-        item["trust_level"] = trust
-        annotated.append(item)
-    return annotated, trust
+    review = [r for r in rows if r.get("mapping_status") == "NEEDS_REVIEW"]
+    if review:
+        annotated = [dict(r, trust_level=_TRUST_PROVISIONAL) for r in review]
+        return annotated, _TRUST_PROVISIONAL
+
+    annotated = [dict(r, trust_level=_TRUST_UNVERIFIED) for r in rows]
+    return annotated, _TRUST_UNVERIFIED
 
 
 def _pack_exact_result(
@@ -88,21 +81,12 @@ def _pack_exact_result(
         "view": view,
         "tenant_id": tenant_id,
         "document_id": document_id or None,
-        "row_count": len(selected),
         "data_quality": trust,
+        "row_count": len(selected),
         "rows": selected,
     }
     if trust == _TRUST_PROVISIONAL:
-        payload["quality_note"] = (
-            "No MAPPED rows matched; returning NEEDS_REVIEW rows. "
-            "Treat values as provisional — do not invent missing cells."
-        )
-    elif trust == _TRUST_UNVERIFIED:
-        payload["quality_note"] = (
-            "No MAPPED or NEEDS_REVIEW rows matched; returning remaining rows with low confidence."
-        )
-    elif trust == _TRUST_VERIFIED:
-        payload["quality_note"] = "Returning MAPPED (verified) rows only."
+        payload["quality_note"] = "Provisional data (NEEDS_REVIEW): numbers are unverified."
     if note:
         payload["note"] = note
     return json.dumps(payload, indent=2, default=str)
@@ -281,8 +265,20 @@ async def _fetch_extracted_rows(
         strict = item.get("strict_columns")
         if isinstance(strict, dict):
             for sk, sv in strict.items():
-                if sk not in item:
+                if item.get(sk) is None and sv is not None:
                     item[sk] = sv
+
+        unmapped = item.get("unmapped_jsonb")
+        if isinstance(unmapped, dict):
+            for uk, uv in unmapped.items():
+                if item.get(uk) is None and uv is not None and uv != "":
+                    item[uk] = uv
+
+        extracted_nums = _extract_numbers_from_blob(unmapped) or _extract_numbers_from_blob(item.get("source_text"))
+        for ek, ev in extracted_nums.items():
+            if item.get(ek) is None:
+                item[ek] = ev
+
         results.append(item)
     return results
 
@@ -328,6 +324,95 @@ async def _fetch_rows(
     finally:
         await conn.close()
 
+    if not rows and document_id:
+        logger.info("Exact view yielded 0 rows for document; auto-discovering available document tables", view=view_name, document_id=document_id)
+        conn = await _connect()
+        try:
+            avail = await conn.fetch(
+                "SELECT DISTINCT target_table FROM extracted_tables WHERE document_id = $1 AND target_table IS NOT NULL AND target_table <> '' LIMIT 5",
+                document_id
+            )
+            avail_tables = [r["target_table"] for r in avail]
+            # Prioritize core financial statements (balance sheet, income statement, cash flow)
+            core_order = ["standardized_balance_sheet", "standardized_income_statement", "standardized_cash_flow", "vendor_invoice_headers"]
+            avail_tables.sort(key=lambda t: core_order.index(t) if t in core_order else 99)
+        finally:
+            await conn.close()
+
+        if avail_tables:
+            for cand_t in avail_tables:
+                alt_view = f"view_{cand_t}" if not cand_t.startswith("view_") else cand_t
+                if alt_view != view_name and is_allowed_view(alt_view):
+                    logger.info("Serving alternative table present for document", alt_view=alt_view, document_id=document_id)
+                    alt_query = f"""
+                        SELECT *
+                        FROM {alt_view}
+                        WHERE tenant_id = $1 AND sys_document_id = $2
+                        ORDER BY
+                          CASE mapping_status WHEN 'MAPPED' THEN 0 WHEN 'NEEDS_REVIEW' THEN 1 ELSE 2 END,
+                          row_index ASC NULLS LAST
+                        LIMIT $3
+                    """
+                    conn = await _connect()
+                    try:
+                        candidate_rows = await conn.fetch(alt_query, tenant_id, document_id, limit)
+                        if candidate_rows:
+                            rows = candidate_rows
+                            break
+                    finally:
+                        await conn.close()
+
+        if not rows:
+            logger.info("Falling back to tenant-wide search for view", view=view_name)
+            fallback_clauses = ["tenant_id = $1"]
+            fallback_args: List[Any] = [tenant_id]
+            f_idx = 2
+            for col, val in filters.items():
+                _validate_ident(col)
+                fallback_clauses.append(f"{col} = ${f_idx}")
+                fallback_args.append(val)
+                f_idx += 1
+            f_where = " AND ".join(fallback_clauses)
+            f_query = f"""
+                SELECT *
+                FROM {view_name}
+                WHERE {f_where}
+                ORDER BY
+                  CASE mapping_status WHEN 'MAPPED' THEN 0 WHEN 'NEEDS_REVIEW' THEN 1 ELSE 2 END,
+                  row_index ASC NULLS LAST
+                LIMIT ${f_idx}
+            """
+            fallback_args.append(limit)
+            conn = await _connect()
+            try:
+                rows = await conn.fetch(f_query, *fallback_args)
+            finally:
+                await conn.close()
+
+    return _clean_rows(rows)
+
+def _extract_numbers_from_blob(blob: Any) -> Dict[str, float]:
+    """Parse numeric key-value pairs from raw unmapped JSON/text blobs."""
+    out: Dict[str, float] = {}
+    if not blob:
+        return out
+    text = str(blob)
+    import re
+    matches = re.findall(r'"([a-zA-Z0-9_]{3,40})"\s*:\s*"?([$-]?[\d,]+\.?\d*)"?', text)
+    for k, v in matches:
+        k_lower = k.lower()
+        if any(kw in k_lower for kw in ("asset", "revenue", "income", "liability", "equity", "cash", "debt", "profit", "amount", "total", "subtotal", "tax", "eps", "cost", "expense", "margin", "payable", "receivable")):
+            try:
+                clean_v = v.replace("$", "").replace(",", "").strip()
+                if clean_v and clean_v != "-":
+                    num = float(clean_v)
+                    out[k_lower] = num
+            except ValueError:
+                pass
+    return out
+
+
+def _clean_rows(rows: List[Any]) -> List[Dict[str, Any]]:
     results = []
     for row in rows:
         item = dict(row)
@@ -336,6 +421,26 @@ async def _fetch_rows(
                 item[k] = v.isoformat()
             elif isinstance(v, memoryview):
                 item[k] = bytes(v).decode("utf-8", errors="replace")
+        
+        # Unpack unmapped_jsonb fields if present
+        unmapped = item.get("unmapped_jsonb")
+        if isinstance(unmapped, dict):
+            for uk, uv in unmapped.items():
+                if item.get(uk) is None and uv is not None and uv != "":
+                    item[uk] = uv
+        elif isinstance(unmapped, list):
+            for entry in unmapped:
+                if isinstance(entry, dict):
+                    for uk, uv in entry.items():
+                        if item.get(uk) is None and uv is not None and uv != "":
+                            item[uk] = uv
+
+        # Fallback: Extract numbers from raw source_text or unmapped_jsonb blob if key fields are null
+        extracted_nums = _extract_numbers_from_blob(unmapped) or _extract_numbers_from_blob(item.get("source_text"))
+        for ek, ev in extracted_nums.items():
+            if item.get(ek) is None:
+                item[ek] = ev
+
         results.append(item)
     return results
 

@@ -1,6 +1,5 @@
 from typing import Dict
 
-# Pre-defined, validated Cypher queries for common financial relationship tasks
 CYPHER_TEMPLATES: Dict[str, str] = {
     "FIND_SUBSIDIARIES": """
         MATCH (company:Entity)-[:OWNS|HAS_SUBSIDIARY]->(sub:Entity)

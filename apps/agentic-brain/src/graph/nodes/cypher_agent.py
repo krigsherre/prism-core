@@ -63,19 +63,21 @@ IMPORTANT RULES:
         ])
         
         template_name = response.template_name
-        entity_name = response.entity_name
-        
+        entity_name = response.entity_name or ""
+
+        if (not entity_name or entity_name.lower() in ("the company", "company", "audit", "overview")) and docs:
+            active_doc = next((d for d in docs if d.get("document_id") == doc_id), docs[0] if docs else None)
+            if active_doc and active_doc.get("company_name"):
+                entity_name = active_doc["company_name"]
+
+        if not entity_name:
+            entity_name = user_msg[:30].replace("'", "").strip()
+
         if template_name not in CYPHER_TEMPLATES:
             template_name = "GENERAL_RELATIONSHIPS"
             
         cypher = CYPHER_TEMPLATES[template_name]
-        
-        # We manually inject the parameter for simplicity since execute_cypher doesn't take params dict yet
         cypher = cypher.replace("$entity_name", f"'{entity_name}'")
-        
-        if doc_id:
-            # Optionally add document_id filter if needed, though templates are entity-focused
-            pass
 
     except Exception as e:
         logger.error("Cypher Template LLM failed", error=str(e))

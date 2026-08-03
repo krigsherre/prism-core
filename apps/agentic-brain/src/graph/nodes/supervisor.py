@@ -67,7 +67,6 @@ CRITICAL RULES:
         intents = ["SQL", "VECTOR", "CYPHER"]
         reasoning = "Fallback due to LLM error"
 
-    # Enforce valid intents
     valid_intents = [i.upper() for i in intents if i.upper() in ["SQL", "CYPHER", "VECTOR"]]
     if not valid_intents:
         valid_intents = ["VECTOR"]

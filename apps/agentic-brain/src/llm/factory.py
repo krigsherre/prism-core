@@ -74,7 +74,7 @@ class LLMFactory:
                 os.environ.get("OLLAMA_BASE_URL", "http://host.docker.internal:11434")
                 .rstrip("/").rstrip("/v1")
             )
-            num_ctx = int(os.environ.get("OLLAMA_NUM_CTX", "8192"))
+            num_ctx = int(os.environ.get("OLLAMA_NUM_CTX", "16384"))
             return ChatOllama(model=model_name, temperature=temperature, base_url=ollama_url, num_ctx=num_ctx, streaming=True)
         else:
             raise ValueError(f"Unsupported LLM provider: {provider}")
