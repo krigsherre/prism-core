@@ -109,16 +109,50 @@ class ExtractionService:
         pending_nodes = []
         promises = []
 
-        for page_num in range(start_page, end_page + 1):
+        async def process_page(page_num: int):
+            def _heavy_cpu_work():
+                # Open isolated doc for this thread to ensure thread safety
+                import base64
+                import io
+                with fitz.open(doc.name) as local_doc:
+                    p = local_doc.load_page(page_num)
+                    px = p.get_pixmap(dpi=150)
+                    # Convert to PIL Image
+                    img = Image.frombytes("RGB", (px.width, px.height), px.samples)
+                    
+                    # Create base64 for docling
+                    buffered = io.BytesIO()
+                    img.save(buffered, format="JPEG", quality=90)
+                    b64_image = base64.b64encode(buffered.getvalue()).decode("utf-8")
+                    
+                    return img, b64_image, px.width, px.height
+                    
+            img, b64_image, pix_w, pix_h = await asyncio.to_thread(_heavy_cpu_work)
+            
             page = doc.load_page(page_num)
-            boxes = self.layout_slicer.slice_page(page)
-
-            pix = page.get_pixmap()
-            img = Image.frombytes("RGB", (pix.width, pix.height), pix.samples)
-
+            boxes = await self.layout_slicer.slice_page_with_b64_async(page, b64_image, pix_w, pix_h)
+            
+            page_nodes = []
+            page_promises = []
             for box in boxes:
                 meta = self._prepare_node_metadata(box, page_num)
-                await self._route_box_extraction(meta, box, page, img, pending_nodes, promises)
+                await self._route_box_extraction(meta, box, page, img, page_nodes, page_promises)
+                
+            return page_num, page_nodes, page_promises
+            
+        tasks = [process_page(p) for p in range(start_page, end_page + 1)]
+        pages_data = await asyncio.gather(*tasks)
+        pages_data.sort(key=lambda x: x[0])
+
+        for page_num, page_nodes, page_promises in pages_data:
+            # Shift promise indices to match the global promises list
+            promise_offset = len(promises)
+            for meta in page_nodes:
+                if "promise_idx" in meta:
+                    meta["promise_idx"] += promise_offset
+            
+            pending_nodes.extend(page_nodes)
+            promises.extend(page_promises)
 
         return pending_nodes, promises
 
@@ -154,18 +188,12 @@ class ExtractionService:
             cropped = img.crop((bbox[0], bbox[1], bbox[2], bbox[3]))
             target_schema = self._schema_for_box(b_type)
 
-            if self.dynamic_batcher:
-                future = await self.dynamic_batcher.enqueue(cropped, b_type, target_schema=target_schema)
-                promises.append(future)
-                meta["promise_idx"] = len(promises) - 1
-                pending_nodes.append(meta)
-            else:
-                extractor = self.extractor_factory.get_extractor(b_type)
-                raw = extractor.extract(cropped, target_schema)
-                if b_type == "TABLE":
-                    raw = normalize_table_content(str(raw))
-                meta["content"] = raw
-                pending_nodes.append(meta)
+            extractor = self.extractor_factory.get_extractor(b_type)
+            # Create a task for concurrent extraction against vLLM
+            future = asyncio.create_task(extractor.extract_async(cropped, target_schema))
+            promises.append(future)
+            meta["promise_idx"] = len(promises) - 1
+            pending_nodes.append(meta)
 
     async def _resolve_gpu_promises(self, builder: DOMBuilder, pending_nodes: List[dict], promises: List[asyncio.Future]):
         results = []

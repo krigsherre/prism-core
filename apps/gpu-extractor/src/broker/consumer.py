@@ -22,10 +22,42 @@ from config.settings import settings
 logger = structlog.get_logger(__name__)
 tracer = trace.get_tracer(__name__)
 
+class DocumentSlotRegistry:
+    """
+    Per-document fairness guard.
+    Caps how many concurrent slots a single document_id can hold so that
+    a large fan-out cannot starve other documents waiting on the global semaphore.
+    """
+    def __init__(self, max_per_doc: int):
+        self._max = max_per_doc
+        self._lock = asyncio.Lock()
+        self._counts: dict[str, int] = {}
+        self._waiters: dict[str, asyncio.Condition] = {}
+
+    async def acquire(self, doc_id: str) -> None:
+        async with self._lock:
+            if doc_id not in self._waiters:
+                self._waiters[doc_id] = asyncio.Condition(self._lock)
+        cond = self._waiters[doc_id]
+        async with cond:
+            while self._counts.get(doc_id, 0) >= self._max:
+                await cond.wait()
+            self._counts[doc_id] = self._counts.get(doc_id, 0) + 1
+
+    async def release(self, doc_id: str) -> None:
+        cond = self._waiters.get(doc_id)
+        if cond:
+            async with cond:
+                self._counts[doc_id] = max(0, self._counts.get(doc_id, 1) - 1)
+                cond.notify_all()
+
+
 class KafkaConsumerService:
     def __init__(self, extraction_service: ExtractionService, max_concurrent: int = 4):
         self.extraction_service = extraction_service
+        self._max_concurrent = max_concurrent
         self.processing_semaphore = asyncio.Semaphore(max_concurrent)
+        self._doc_slots = DocumentSlotRegistry(max_per_doc=max(1, max_concurrent // 2))
         self.consumer: Optional[AIOKafkaConsumer] = None
         self.producer: Optional[AIOKafkaProducer] = None
         self._task = None
@@ -59,12 +91,25 @@ class KafkaConsumerService:
         self._task = asyncio.create_task(self._consume_loop())
 
     async def _consume_loop(self):
+        """
+        Backpressure-aware consume loop.
+        We only spawn a new task once there is a free semaphore slot, which
+        prevents unbounded task accumulation when the pipeline is saturated.
+        """
         try:
             if self.consumer:
                 async for msg in self.consumer:
-                    asyncio.create_task(self._process_message(msg))
+                    await self.processing_semaphore.acquire()
+                    asyncio.create_task(self._process_message_with_slot(msg))
         except asyncio.CancelledError:
             pass
+
+    async def _process_message_with_slot(self, msg):
+        """Wrapper that owns the already-acquired semaphore slot."""
+        try:
+            await self._process_message(msg)
+        finally:
+            self.processing_semaphore.release()
 
     async def stop(self):
         if self._task:
@@ -76,38 +121,40 @@ class KafkaConsumerService:
 
 
     async def _process_message(self, msg):
-        async with self.processing_semaphore:
-            structlog.contextvars.clear_contextvars()
-            
-            event = self._parse_ingest_event(msg)
-            if not event:
-                return
-                
-            # Extract parent trace context from Kafka headers
-            headers = {}
-            if hasattr(msg, 'headers') and msg.headers:
-                for k, v in msg.headers:
-                    headers[k] = v.decode("utf-8") if v else ""
-            ctx = extract(headers)
-            
-            with tracer.start_as_current_span("process_kafka_message", context=ctx) as span:
-                span.set_attribute("tenant_id", event.tenant_id)
-                span.set_attribute("event_id", event.event_id)
-                
-                structlog.contextvars.bind_contextvars(
-                    tenant_id=event.tenant_id, event_id=event.event_id
-                )
-                logger.info("Received Kafka message", length=len(msg.value))
-                
-                try:
-                    await self._publish_status(event, "EXTRACTING")
-                    await self._route_event(event)
-                except Exception as e:
-                    logger.error("Extraction pipeline failed", error=str(e))
-                    logger.debug(traceback.format_exc())
-                    
-                    await self._publish_status(event, "FAILED", error_message=str(e))
-                    await self._route_to_dlq(msg, event)
+        structlog.contextvars.clear_contextvars()
+
+        event = self._parse_ingest_event(msg)
+        if not event:
+            return
+
+        doc_id = event.event_id
+
+        headers = {}
+        if hasattr(msg, 'headers') and msg.headers:
+            for k, v in msg.headers:
+                headers[k] = v.decode("utf-8") if v else ""
+        ctx = extract(headers)
+
+        with tracer.start_as_current_span("process_kafka_message", context=ctx) as span:
+            span.set_attribute("tenant_id", event.tenant_id)
+            span.set_attribute("event_id", doc_id)
+
+            structlog.contextvars.bind_contextvars(
+                tenant_id=event.tenant_id, event_id=doc_id
+            )
+            logger.info("Received Kafka message", length=len(msg.value))
+
+            await self._doc_slots.acquire(doc_id)
+            try:
+                await self._publish_status(event, "EXTRACTING")
+                await self._route_event(event)
+            except Exception as e:
+                logger.error("Extraction pipeline failed", error=str(e))
+                logger.debug(traceback.format_exc())
+                await self._publish_status(event, "FAILED", error_message=str(e))
+                await self._route_to_dlq(msg, event)
+            finally:
+                await self._doc_slots.release(doc_id)
 
     def _parse_ingest_event(self, msg) -> Optional[events_pb2.IngestEvent]:
         event = events_pb2.IngestEvent()
