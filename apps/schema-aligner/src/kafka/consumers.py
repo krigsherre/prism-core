@@ -171,7 +171,7 @@ class RawTableDOMConsumer:
         async with self.semaphore:
             await self._handle_message(msg)
             if self._consumer:
-                await self._consumer.commit()
+                asyncio.create_task(self._consumer.commit())
 
     async def _handle_message(self, msg: Any) -> None:
         headers_dict = {k: v.decode('utf-8') if isinstance(v, bytes) else v for k, v in (msg.headers or [])}
@@ -479,15 +479,25 @@ class RawTableDOMConsumer:
         if not self._producer:
             return
 
-        hitl_review = await generate_hitl_review(
-            target_table=final_table,
-            strict_columns=strict_columns or [],
-            unmapped_jsonb=unmapped_jsonb or [],
-            drifted_columns=drifted_columns,
-            critic_errors=[],
-            extracted_data=original_data.get("extracted_data") or {},
-            source_headers=list((original_data.get("extracted_data") or {}).keys()),
-        )
+        try:
+            hitl_review = await generate_hitl_review(
+                target_table=final_table,
+                strict_columns=strict_columns or [],
+                unmapped_jsonb=unmapped_jsonb or [],
+                drifted_columns=drifted_columns,
+                critic_errors=[],
+                extracted_data=original_data.get("extracted_data") or {},
+                source_headers=list((original_data.get("extracted_data") or {}).keys()),
+            )
+        except Exception as e:
+            logger.warning("Failed to generate LLM HITL review, using deterministic fallback payload", error=str(e))
+            hitl_review = {
+                "summary": f"Schema review required for table {final_table} (drifted: {', '.join(drifted_columns or ['unmapped_columns'])})",
+                "issues": [],
+                "proposed_extracted_data": original_data.get("extracted_data") or {},
+            }
+        if hasattr(hitl_review, "model_dump"):
+            hitl_review = hitl_review.model_dump()
 
         anomaly_payload = {
             "document_id": document_id,

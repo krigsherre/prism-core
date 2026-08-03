@@ -18,9 +18,9 @@ from typing import Any, Dict, List, Optional
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from core.financial_numerics import nearly_equal, parse_financial_number  # noqa: E402
-from core.verification import CriticAgent  # noqa: E402
-from core.critic_types import Severity  # noqa: E402
+from core.financial_numerics import nearly_equal, parse_financial_number 
+from core.verification import CriticAgent
+from core.critic_types import Severity 
 
 
 @dataclass
@@ -51,7 +51,6 @@ class DocResult:
 
     @property
     def cell_f1_proxy(self) -> float:
-        # Precision=recall when evaluating labeled cells only (gold recall)
         return self.matched / self.total if self.total else 1.0
 
 
@@ -76,7 +75,6 @@ def evaluate_fixture(path: Path, critic: CriticAgent) -> DocResult:
     doc_id = payload.get("document_id", path.stem)
     target_table = payload["target_table"]
     extracted_rows: List[Dict[str, Any]] = payload.get("extracted_rows") or []
-    # Support single-row shorthand
     if not extracted_rows and payload.get("extracted_row"):
         extracted_rows = [payload["extracted_row"]]
 
@@ -85,7 +83,6 @@ def evaluate_fixture(path: Path, critic: CriticAgent) -> DocResult:
     predicted_table = payload.get("predicted_table", target_table)
     result.schema_ok = predicted_table == target_table
 
-    # Critic on extracted rows (fail-closed financial identities)
     detailed = critic.verify_document_detailed(target_table, extracted_rows)
     hard_fails = [r for r in detailed if not r.ok and r.severity == Severity.HARD]
     soft_fails = [r for r in detailed if not r.ok and r.severity == Severity.SOFT]
@@ -97,7 +94,7 @@ def evaluate_fixture(path: Path, critic: CriticAgent) -> DocResult:
     expect_fail = bool(payload.get("_expect_critic_fail"))
     expect_soft = bool(payload.get("_expect_soft_fail"))
     if expect_fail:
-        result.critic_ok = len(hard_fails) > 0  # must HARD-reject
+        result.critic_ok = len(hard_fails) > 0
         result.critic_error = "" if result.critic_ok else "expected HARD critic failure but passed"
     elif expect_soft:
         result.critic_ok = len(soft_fails) > 0 and len(hard_fails) == 0
@@ -106,7 +103,6 @@ def evaluate_fixture(path: Path, critic: CriticAgent) -> DocResult:
         result.critic_ok = ok
         result.critic_error = err
 
-    # Skip cell scoring for intentional negative fixtures
     if expect_fail or expect_soft:
         return result
 
@@ -124,11 +120,9 @@ def evaluate_fixture(path: Path, critic: CriticAgent) -> DocResult:
             CellScore(column=column, expected=expected, predicted=predicted, match=match, reason=reason)
         )
 
-    # Optional relation checks encoded in gold
     for rel in payload.get("relations") or []:
         if rel.get("type") != "sum_equals":
             continue
-        # relations are verified via critic already; track as synthetic cell
         result.cell_scores.append(
             CellScore(
                 column=rel.get("left", "relation"),

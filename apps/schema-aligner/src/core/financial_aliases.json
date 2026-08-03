@@ -194,5 +194,20 @@
   "subtotal": "subtotal_amount",
   "tax": "tax_amount",
   "shipping": "shipping_amount",
-  "discount": "discount_amount"
+  "discount": "discount_amount",
+
+  "subsidiary": "entity_name",
+  "subsidiary name": "entity_name",
+  "name of subsidiary": "entity_name",
+  "name of registrant": "parent_entity_name",
+  "parent company": "parent_entity_name",
+  "holding company": "parent_entity_name",
+  "jurisdiction": "jurisdiction",
+  "jurisdiction of incorporation": "jurisdiction",
+  "state or country of incorporation": "jurisdiction",
+  "place of incorporation": "jurisdiction",
+  "ownership": "ownership_percentage",
+  "percentage of ownership": "ownership_percentage",
+  "% of ownership": "ownership_percentage",
+  "percentage of voting power": "ownership_percentage"
 }

@@ -485,5 +485,13 @@
     "currency": "str",
     "period": "str",
     "additional_metadata": "dict"
+  },
+  "corporate_subsidiaries": {
+    "entity_name": "str",
+    "parent_entity_name": "str",
+    "jurisdiction": "str",
+    "ownership_percentage": "float",
+    "relationship_type": "str",
+    "additional_metadata": "dict"
   }
 }

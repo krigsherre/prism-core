@@ -25,6 +25,11 @@ def get_fx_rate(from_currency: str, to_currency: str) -> float:
     if src == dst:
         return 1.0
 
+    if src not in _FX_RATES_TO_USD:
+        logger.warning("Unmapped source FX currency; defaulting rate to 1.0", currency=src)
+    if dst not in _FX_RATES_TO_USD:
+        logger.warning("Unmapped target FX currency; defaulting rate to 1.0", currency=dst)
+
     src_rate = _FX_RATES_TO_USD.get(src, 1.0)
     dst_rate = _FX_RATES_TO_USD.get(dst, 1.0)
 

@@ -7,8 +7,8 @@ class Settings(BaseSettings):
     port: int = 8001
     chunk_size_rows: int = 10
     fuzzy_match_threshold: int = 80
-    max_concurrent_inferences: int = 5
-    max_reflexion_attempts: int = 3
+    max_concurrent_inferences: int = 10
+    max_reflexion_attempts: int = 2
     confidence_auto_promote_min: float = 0.85
     confidence_review_min: float = 0.55
     doc_router_min_score: float = 1.5

@@ -1,75 +1,29 @@
-"""Generate pinpointed HITL review prompts via Anthropic (instructor)."""
 from __future__ import annotations
 
 import json
 import os
 from typing import Any, Dict, List, Optional
 
-import httpx
-import instructor
 import structlog
-from anthropic import AsyncAnthropic
 from pydantic import BaseModel, Field
 
 logger = structlog.get_logger(__name__)
 
-LLM_PROVIDER = os.environ.get("LLM_PROVIDER", "anthropic").lower()
-MODEL_NAME = os.environ.get("LLM_MODEL", os.environ.get("HITL_LLM_MODEL", "claude-haiku-4-5-20251001"))
-
 
 class CellIssue(BaseModel):
-    row_index: int = Field(..., description="0-based row index in the extracted table")
-    column: str = Field(..., description="Target schema column or raw header name")
-    current_value: Optional[str] = Field(None, description="Value currently extracted")
-    expected_or_issue: str = Field(..., description="What is wrong or what is expected")
-    suggested_value: Optional[str] = Field(None, description="Suggested corrected value if known")
-    question: str = Field(..., description="Clear approve/reject question for the human reviewer")
+    row_index: int
+    column: str
+    current_value: Optional[str] = None
+    expected_or_issue: str
+    suggested_value: Optional[str] = None
+    question: str
 
 
 class HitlReview(BaseModel):
-    summary: str = Field(..., description="One-paragraph summary of what the human must decide")
-    issues: List[CellIssue] = Field(default_factory=list, description="Pinpointed cell-level issues")
-    proposed_extracted_data: Dict[str, Any] = Field(
-        default_factory=dict,
-        description="Corrected extracted_data the human can approve as-is or edit",
-    )
+    summary: str
+    issues: List[CellIssue] = Field(default_factory=list)
+    proposed_extracted_data: Dict[str, Any] = Field(default_factory=dict)
 
-
-def _build_llm_client():
-    if LLM_PROVIDER == "anthropic":
-        return instructor.from_anthropic(
-            AsyncAnthropic(
-                api_key=os.environ.get("ANTHROPIC_API_KEY", ""),
-                http_client=httpx.AsyncClient(
-                    limits=httpx.Limits(max_connections=50, max_keepalive_connections=10)
-                ),
-            )
-        )
-    openai_base_url = (
-        os.environ.get("OPENAI_BASE_URL")
-        or os.environ.get("OPENAI_API_BASE")
-        or os.environ.get("VLLM_API_BASE")
-        or "http://vllm-server:8002"
-    )
-    openai_api_key = os.environ.get("OPENAI_API_KEY") or os.environ.get("VLLM_API_KEY") or "EMPTY"
-
-    return AsyncOpenAI(
-        base_url=openai_base_url,
-        api_key=openai_api_key,
-        http_client=httpx.AsyncClient(
-            limits=httpx.Limits(max_connections=50, max_keepalive_connections=10)
-        ),
-    )
-
-
-_llm_client = None
-
-
-def _client():
-    global _llm_client
-    if _llm_client is None:
-        _llm_client = _build_llm_client()
-    return _llm_client
 
 
 def _heuristic_fallback(
@@ -220,31 +174,16 @@ async def generate_hitl_review(
     user_prompt = f"Build a HITL review from this alignment failure context:\n{json.dumps(context, default=str)}"
 
     try:
-        client = _client()
-        if LLM_PROVIDER == "anthropic":
-            result: HitlReview = await client.messages.create(
-                model=MODEL_NAME,
-                messages=[
-                    {"role": "system", "content": sys_prompt},
-                    {"role": "user", "content": user_prompt},
-                ],
-                response_model=HitlReview,
-                max_tokens=4096,
-            )
-        else:
-            response = await client.beta.chat.completions.parse(
-                model=MODEL_NAME,
-                messages=[
-                    {"role": "system", "content": sys_prompt},
-                    {"role": "user", "content": user_prompt},
-                ],
-                response_format=HitlReview,
-                temperature=0.0,
-                max_tokens=4096,
-            )
-            result = response.choices[0].message.parsed if response.choices else None
-            if result is None:
-                return fallback.model_dump()
+        from core.llm_factory import LLMFactory, ModelTier
+        from langchain_core.messages import SystemMessage, HumanMessage
+
+        structured_llm = LLMFactory.get_structured_llm(HitlReview, ModelTier.STANDARD)
+        result: HitlReview = await structured_llm.ainvoke([
+            SystemMessage(content=sys_prompt),
+            HumanMessage(content=user_prompt)
+        ])
+        if result is None:
+            return fallback.model_dump()
 
         if not result.proposed_extracted_data:
             result.proposed_extracted_data = fallback.proposed_extracted_data

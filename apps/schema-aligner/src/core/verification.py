@@ -216,7 +216,7 @@ class CriticAgent:
         )
         if comp:
             out.append(comp)
-            return out  # don't run identity on incomplete rows
+            return out
 
         assets = fget(data, "total_assets")
         liabilities = fget(data, "total_liabilities")

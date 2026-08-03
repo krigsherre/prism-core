@@ -229,7 +229,7 @@ def value_grounded_in_source(value: Any, source_text: str, *, scale: float = 1.0
         return True
     candidates = {token, f"{parsed:,.2f}", f"{parsed:,.0f}", f"({abs(parsed):,.2f})" if parsed < 0 else ""}
     if scale and scale != 1.0:
-        scaled = parsed  # row values are typically already in footnote units
+        scaled = parsed 
         candidates.add(normalize_number_token(scaled) or "")
     for c in candidates:
         if c and (c in blob or c.replace(",", "") in compact):

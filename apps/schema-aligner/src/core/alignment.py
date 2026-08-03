@@ -30,7 +30,7 @@ logger = structlog.get_logger(__name__)
 tracer = trace.get_tracer(__name__)
 
 LLM_PROVIDER = os.environ.get("LLM_PROVIDER", "anthropic").lower()
-MODEL_NAME = os.environ.get("LLM_MODEL", os.environ.get("VLLM_MODEL", "Qwen/Qwen2.5-7B-Instruct"))
+MODEL_NAME = os.environ.get("LLM_MODEL", os.environ.get("VLLM_MODEL", "qwen2.5:14b-instruct-q8_0 "))
 
 _FINANCIAL_HINTS = (
     "balance sheet", "income statement", "profit and loss", "p&l", "cash flow",
@@ -233,7 +233,6 @@ class WaterfallAlignmentStrategy:
                 logger.info("Doc router classified table", schema=routed, score=score)
                 return routed
 
-            # Strict Guard: If it lacks financial landmarks or numeric matrix structure, it's narrative text — skip LLM alignment & HITL noise
             if not self._looks_financial(markdown_content, parent_section_text) and not self._has_numeric_matrix(markdown_content):
                 logger.debug("Skipping table alignment for non-financial narrative block")
                 return ""

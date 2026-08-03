@@ -26,7 +26,6 @@ def parse_ixbrl_facts(html_content: str) -> Dict[str, Any]:
     facts: Dict[str, Any] = {}
     contexts: Dict[str, str] = {}
 
-    # Extract nonFraction tags (numeric financial values)
     pattern = r'<ix:nonFraction\s+[^>]*name=["\'](?:[a-zA-Z0-9_-]+:)?([a-zA-Z0-9_-]+)["\'][^>]*>(.*?)</ix:nonFraction>'
     matches = re.findall(pattern, html_content, re.IGNORECASE | re.DOTALL)
     for concept, raw_val in matches:
@@ -35,7 +34,6 @@ def parse_ixbrl_facts(html_content: str) -> Dict[str, Any]:
         if clean_concept and val_text:
             facts[clean_concept] = val_text
 
-    # Extract nonNumeric tags (text disclosures / context notes)
     non_num_pattern = r'<ix:nonNumeric\s+[^>]*name=["\'](?:[a-zA-Z0-9_-]+:)?([a-zA-Z0-9_-]+)["\'][^>]*>(.*?)</ix:nonNumeric>'
     non_num_matches = re.findall(non_num_pattern, html_content, re.IGNORECASE | re.DOTALL)
     for concept, raw_val in non_num_matches:

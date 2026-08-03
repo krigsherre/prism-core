@@ -25,7 +25,7 @@ class PackRule:
     require: List[str] = field(default_factory=list)
     trigger_any_of: List[str] = field(default_factory=list)
     left: str = ""
-    right: List[str] = field(default_factory=list)  # fields to sum / operands
+    right: List[str] = field(default_factory=list) 
     op: str = "add"  # add | sub | mul
     min_value: Optional[float] = None
     max_value: Optional[float] = None
