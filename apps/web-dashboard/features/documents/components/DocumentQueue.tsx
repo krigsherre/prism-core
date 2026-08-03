@@ -86,7 +86,7 @@ export const DocumentQueue = () => {
       .finally(() => setIsLoading(false))
 
     const sse = new EventSource(
-      `${API_BASE_URL}/api/documents/status/stream?tenant_id=${tenantId}`
+      `${API_BASE_URL}/documents/status/stream?tenant_id=${tenantId}`
     )
     sse.onmessage = (e) => {
       try {

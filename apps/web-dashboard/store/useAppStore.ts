@@ -80,7 +80,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
     try {
       const targetDocId = documentId || get().activeDocumentId || ""
-      const response = await fetch(`${API_BASE_URL}/api/chat?tenant_id=default-tenant`, {
+      const response = await fetch(`${API_BASE_URL}/chat?tenant_id=default-tenant`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -213,7 +213,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     set((state) => ({ messages: [...state.messages, msg] }))
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/chat?tenant_id=default-tenant`, {
+      const response = await fetch(`${API_BASE_URL}/chat?tenant_id=default-tenant`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ thread_id: threadId, message: userMessage })

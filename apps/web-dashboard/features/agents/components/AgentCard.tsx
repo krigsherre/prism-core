@@ -48,16 +48,16 @@ export const AgentCard = ({
           <div className="flex flex-wrap gap-1.5">
             {[
               {
-                title: "Forensic Revenue Audit",
-                template: "Perform a comprehensive Forensic Accounting Audit:\n1. Extract Net Income from P&L and compare against Operating Cash Flow.\n2. Cross-check Related Party Transactions (Note disclosures) and flag ungrounded transactions.\n3. Verify if Assets = Liabilities + Equity identity holds mathematically."
+                title: "Apple 10-K Forensic Audit",
+                template: "Perform a Forensic Accounting Audit on Apple Inc. (AAPL) SEC 10-K:\n1. Extract Net Income from P&L and compare against Operating Cash Flow.\n2. Cross-check Related Party Transactions (Note disclosures) and flag ungrounded transactions.\n3. Verify if Assets = Liabilities + Stockholders' Equity holds mathematically."
               },
               {
-                title: "Financial Statement Extraction",
-                template: "Perform a Financial Statement Analysis:\n1. Extract Revenue from Operations, PBT, and PAT.\n2. Calculate YoY revenue growth and EBITDA margins.\n3. Verify Capital Work-in-Progress (CWIP) and Trade Payables disclosures."
+                title: "SEC 10-K Financial Extraction",
+                template: "Perform a SEC 10-K Financial Statement Analysis:\n1. Extract Total Net Sales, Operating Income, and Net Income.\n2. Calculate YoY revenue growth, Gross Margin %, and R&D ratio.\n3. Verify Cash & Cash Equivalents vs Commercial Paper disclosures."
               },
               {
                 title: "Credit & Debt Evaluation",
-                template: "Perform a Credit Risk & Liquidity Evaluation:\n1. Calculate Interest Coverage Ratio (EBIT / Interest Expense).\n2. Extract short-term borrowings vs Cash & Cash Equivalents.\n3. Outline the 12-month debt maturity repayment schedule."
+                template: "Perform a Credit Risk & Liquidity Evaluation on SEC Filing:\n1. Calculate Interest Coverage Ratio (EBIT / Interest Expense).\n2. Extract short-term debt vs Cash & Term Securities.\n3. Outline the 12-month debt maturity repayment schedule."
               }
             ].map((item) => (
               <button

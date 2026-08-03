@@ -61,7 +61,6 @@ export const ChatMessage = ({ message }: ChatMessageProps) => {
       transition={{ type: "spring", stiffness: 380, damping: 28 }}
       className={`flex gap-3 w-full ${isUser ? "flex-row-reverse" : "flex-row"}`}
     >
-      {/* Avatar */}
       <div
         className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 mt-0.5 shadow-sm ${
           isUser
@@ -76,9 +75,7 @@ export const ChatMessage = ({ message }: ChatMessageProps) => {
         )}
       </div>
 
-      {/* Message Bubble Container */}
       <div className={`max-w-[85%] space-y-2 ${isUser ? "text-right" : "text-left"}`}>
-        {/* Agent Role Badge */}
         {!isUser && (
           <div className="flex items-center gap-2 px-1">
             <span className="text-xs font-semibold text-foreground">{personaTitle}</span>
@@ -101,7 +98,6 @@ export const ChatMessage = ({ message }: ChatMessageProps) => {
             <p className="text-[14px] leading-relaxed whitespace-pre-wrap">{message.content}</p>
           ) : (
             <div className="space-y-3">
-              {/* Chain of Thought / Agent Execution Accordion */}
               {(message.thinking || (message.statusTrace && message.statusTrace.length > 0)) && (
                 <div className="border border-brand/20 bg-brandLight/30 rounded-xl overflow-hidden text-xs">
                   <button
@@ -153,7 +149,6 @@ export const ChatMessage = ({ message }: ChatMessageProps) => {
                 </div>
               )}
 
-              {/* Main Synthesized Output */}
               {message.content ? (
                 <div className="prose-chat text-[14px] leading-relaxed">
                   <ReactMarkdown
@@ -230,7 +225,6 @@ export const ChatMessage = ({ message }: ChatMessageProps) => {
                 </div>
               ) : null}
 
-              {/* Source Provenance Badges */}
               {message.references && message.references.length > 0 && (
                 <div className="pt-3 border-t border-border/60 mt-3">
                   <div className="text-[11px] font-semibold text-muted uppercase tracking-wider mb-2 flex items-center gap-1">

@@ -33,8 +33,8 @@ export const DocumentViewer = ({ closeViewer }: DocumentViewerProps) => {
 
     if (activeDocumentUrl.startsWith('s3://')) {
       const encoded = encodeURIComponent(activeDocumentUrl)
-      setResolvedUrl(`${API_BASE_URL}/api/documents/content?s3_uri=${encoded}&disposition=inline`)
-      setDownloadUrl(`${API_BASE_URL}/api/documents/content?s3_uri=${encoded}&disposition=attachment`)
+      setResolvedUrl(`${API_BASE_URL}/documents/content?s3_uri=${encoded}&disposition=inline`)
+      setDownloadUrl(`${API_BASE_URL}/documents/content?s3_uri=${encoded}&disposition=attachment`)
     } else if (activeDocumentUrl.includes('/api/documents/content')) {
       const url = new URL(activeDocumentUrl, window.location.origin)
       url.searchParams.set('disposition', 'inline')

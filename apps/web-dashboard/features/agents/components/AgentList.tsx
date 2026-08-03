@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useState } from "react"
-import { Plus, Loader2, Bot, Activity } from "lucide-react"
+import { Plus, Loader2, Bot, Activity, UserCog } from "lucide-react"
 import { useAgents } from "../useAgents"
 import { AgentCreator } from "./AgentCreator"
 import { AgentCard } from "./AgentCard"
@@ -99,17 +99,19 @@ export const AgentList = () => {
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
                   {personas.map((p: any) => (
-                    <div key={p.id} className="bg-white border border-brand/20 rounded-xl p-5 shadow-sm flex flex-col justify-between hover:border-brand/40 transition-all">
+                    <div key={p.id} className="bg-white border border-border rounded-xl p-5 shadow-card flex flex-col justify-between hover:border-brand/40 transition-all group">
                       <div>
-                        <div className="flex items-center gap-2 mb-2">
-                          <span className="text-lg">👤</span>
+                        <div className="flex items-center gap-3 mb-3">
+                          <div className="w-8 h-8 rounded-lg bg-brandLight border border-brand/20 flex items-center justify-center shrink-0">
+                            <UserCog size={16} className="text-brand" />
+                          </div>
                           <h3 className="text-sm font-bold text-foreground">{p.name}</h3>
                         </div>
-                        <p className="text-xs text-muted mb-4 leading-relaxed">{p.description}</p>
+                        <p className="text-xs text-muted mb-5 leading-relaxed">{p.description}</p>
                       </div>
                       <button
                         onClick={() => handleDeployPersona(p)}
-                        className="w-full bg-brandLight text-brand border border-brand/30 hover:bg-brand hover:text-white text-xs font-semibold py-2 rounded-lg transition-colors flex items-center justify-center gap-1.5"
+                        className="w-full bg-surface text-foreground border border-border hover:bg-brand hover:text-white hover:border-brand text-xs font-semibold py-2.5 rounded-lg transition-colors flex items-center justify-center gap-1.5"
                       >
                         <Plus size={14} /> Instantiate Persona
                       </button>

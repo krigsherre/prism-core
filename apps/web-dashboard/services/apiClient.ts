@@ -1,4 +1,4 @@
-export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "/api/brain";
 
 interface ApiOptions extends RequestInit {
   data?: any;
@@ -24,7 +24,19 @@ class ApiClient {
     }
 
     try {
-      const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
+      let finalUrl = endpoint;
+
+      if (endpoint.startsWith('/api/v1/') || endpoint.startsWith('/api/gateway')) {
+        // Next.js API routes (/api/v1/*) or gateway — use path as-is
+        finalUrl = endpoint;
+      } else if (endpoint.startsWith('/api/')) {
+        // All other /api/* go to agentic-brain via the /api/brain rewrite
+        finalUrl = `${API_BASE_URL}${endpoint.substring(4)}`;
+      } else if (!endpoint.startsWith('http')) {
+        finalUrl = `${API_BASE_URL}${endpoint.startsWith('/') ? '' : '/'}${endpoint}`;
+      }
+
+      const response = await fetch(finalUrl, config);
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));

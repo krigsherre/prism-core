@@ -184,12 +184,26 @@ export default function HITLPage() {
                   <Button
                     variant="outline"
                     className="rounded-full shadow-sm flex items-center gap-2 border-brand/40 text-brand hover:bg-brand/5"
-                    onClick={() => approveGeneric({
-                      document_id: req.document_id,
-                      node_id: req.id,
-                      target_table: req.payload?.target_table || "generic_table",
-                      unmapped_rows: typeof currentPayloadStr === "string" ? JSON.parse(currentPayloadStr || "[]") : []
-                    })}
+                    onClick={() => {
+                      let unmapped_rows: Record<string, unknown>[] = []
+                      try {
+                        const parsed = JSON.parse(currentPayloadStr || "[]")
+                        if (Array.isArray(parsed)) {
+                          unmapped_rows = parsed
+                        } else if (parsed && typeof parsed === "object") {
+                          // extracted_data is an object — wrap it as a single row
+                          unmapped_rows = [parsed]
+                        }
+                      } catch {
+                        unmapped_rows = []
+                      }
+                      approveGeneric({
+                        document_id: req.document_id,
+                        node_id: req.id,
+                        target_table: req.payload?.target_table || "generic_table",
+                        unmapped_rows,
+                      })
+                    }}
                     disabled={isApprovingGeneric}
                   >
                     Approve as Generic Table

@@ -28,11 +28,11 @@ export const UploadButton = () => {
       formData.append("file", file)
       formData.append("tenant_id", "default-tenant")
 
-      const gatewayUrl = process.env.NEXT_PUBLIC_GATEWAY_URL || "http://localhost:8080"
+      const gatewayUrl = process.env.NEXT_PUBLIC_GATEWAY_URL || "/api/gateway"
 
       await new Promise<void>((resolve, reject) => {
         const xhr = new XMLHttpRequest()
-        xhr.open("POST", `${gatewayUrl}/api/v1/upload`)
+        xhr.open("POST", `${gatewayUrl}/v1/upload`)
         xhr.setRequestHeader("X-Tenant-ID", "default-tenant")
 
         xhr.upload.onprogress = (event) => {

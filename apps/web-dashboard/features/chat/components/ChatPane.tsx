@@ -9,10 +9,10 @@ import { motion, AnimatePresence } from "framer-motion"
 import { api } from "@/services/apiClient"
 
 const SUGGESTIONS = [
-  "Audit Net Income vs Operating Cash Flow in SEC 10-K",
-  "Extract Revenue from Operations & PAT in ₹ Crores",
-  "Verify Related Party Transactions & Note disclosures",
-  "Calculate Interest Coverage & Debt Maturity schedule",
+  "Audit Apple Inc. (AAPL) Net Income vs Operating Cash Flow in SEC 10-K",
+  "Extract Total Net Sales, Gross Margin & R&D Expense from SEC 10-K",
+  "Verify Related Party Transactions & Note disclosures in SEC filing",
+  "Calculate Interest Coverage Ratio & Debt Maturity schedule for Apple",
 ]
 
 const PERSONAS = [
