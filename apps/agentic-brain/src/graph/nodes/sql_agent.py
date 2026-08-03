@@ -35,10 +35,10 @@ class SQLPlanOutput(BaseModel):
     reasoning: str = Field(default="", description="Brief reason for choosing exact vs cube")
 
 
-def generate_sql_node(state: InteractionState) -> dict:
+async def generate_sql_node(state: InteractionState) -> dict:
     """
     Plans SQL access: exact Postgres views for precise data, Cube for aggregations.
-    Uses ultra-fast pattern matching (<1ms) for zero-latency SQL planning.
+    Uses Frontier LLM for high-accuracy SQL generation.
     """
     logger.info("Generating SQL plan", retries=state.get("retries", 0))
 
@@ -48,20 +48,58 @@ def generate_sql_node(state: InteractionState) -> dict:
             user_msg = msg.content
             break
 
-    lower_msg = user_msg.lower()
-    view_name = "extracted_tables"
-    if "balance" in lower_msg or "sheet" in lower_msg or "asset" in lower_msg or "equity" in lower_msg:
-        view_name = "view_standardized_balance_sheet"
-    elif "income" in lower_msg or "revenue" in lower_msg or "profit" in lower_msg or "loss" in lower_msg:
-        view_name = "view_income_statement"
+    cube_schema = fetch_cube_schema.invoke({})
+    has_cube = _cube_schema_available(cube_schema)
+    postgres_views = list_exact_views.invoke({})
+    
+    from core.db import db_client
+    tenant_id = state.get("tenant_id", "default-tenant")
+    docs = await db_client.fetch_tenant_documents(tenant_id)
+    doc_catalog = "\n".join([
+        f"- [ID: {d['document_id']}] File: {d['filename']} | Company: {d.get('company_name')} ({d.get('ticker')}) | Period: {d.get('fiscal_period')}"
+        for d in docs
+    ])
 
-    plan = {
-        "mode": "exact",
-        "view_name": view_name,
-        "filters_json": "{}",
-        "sql": "",
-        "reasoning": f"Fast-path exact view selection: {view_name}",
-    }
+    llm = LLMFactory.get_structured_llm(SQLPlanOutput, ModelTier.FRONTIER)
+    
+    system_prompt = f"""You are an expert SQL planner for Agentic Brain.
+Your goal is to formulate a plan to retrieve exact financial data from the database.
+
+AVAILABLE POSTGRES VIEWS (mode=exact):
+{postgres_views}
+
+AVAILABLE DOCUMENTS IN KNOWLEDGE BASE:
+{doc_catalog}
+Use these IDs to filter `sys_document_id` if the user asks for a specific company, ticker, or document.
+
+If the user wants aggregations, use mode=cube if available.
+CUBE SCHEMA AVAILABLE: {has_cube}
+
+You must return a valid SQLPlanOutput. For mode=exact, provide 'view_name' and 'filters_json' (e.g. {{"sys_document_id": "uuid-here"}}).
+"""
+    try:
+        response = await llm.ainvoke([
+            SystemMessage(content=system_prompt, additional_kwargs={"cache_control": {"type": "ephemeral"}}),
+            HumanMessage(content=user_msg)
+        ])
+        
+        plan = {
+            "mode": response.mode,
+            "view_name": response.view_name,
+            "filters_json": response.filters_json or "{}",
+            "sql": response.sql or "",
+            "reasoning": response.reasoning or "LLM generation successful"
+        }
+    except Exception as e:
+        logger.error("SQL Planner LLM failed", error=str(e))
+        plan = {
+            "mode": "exact",
+            "view_name": "extracted_tables",
+            "filters_json": "{}",
+            "sql": "",
+            "reasoning": "Fallback due to LLM error",
+        }
+
     return {"sql_query": json.dumps(plan)}
 
 
@@ -171,45 +209,11 @@ def execute_sql_node(state: InteractionState) -> dict:
                 "retries": 1,
             }
 
-        user_msg = ""
-        for msg in reversed(state.get("messages", [])):
-            if isinstance(msg, HumanMessage):
-                user_msg = msg.content
-                break
-
-        llm = LLMFactory.get_llm(tier=ModelTier.STANDARD)
-        source_label = (
-            "exact Postgres rows (authoritative extracted values)"
-            if mode == "exact"
-            else "Cube.js aggregation results"
-        )
-        system_prompt = f"""You are an expert Data Analyst.
-Answer the user's question based ONLY on the following {source_label}.
-For exact mode:
-- Prefer rows with data_quality/trust_level "verified" (MAPPED) as ground truth.
-- If data_quality is "provisional" (NEEDS_REVIEW fallback), still answer from those rows but clearly mark figures as provisional / pending review.
-- Do not invent values for null/missing cells.
-If row_count is 0, say you could not find matching extracted data (do not invent Apple/finance facts).
-Do not mention the SQL query itself; answer clearly and concisely.
-Cite document_id / page when present in the rows.
-
-<data>
-{result}
-</data>
-"""
-
-        response = llm.invoke(
-            [
-                SystemMessage(content=system_prompt),
-                HumanMessage(content=user_msg),
-            ]
-        )
-
         references = _build_references_from_exact(result) if mode == "exact" else []
 
         return {
             "error_message": "",
-            "sql_result": response.content,
+            "sql_result": result,
             "references": references,
         }
 

@@ -23,7 +23,6 @@ async def employee_critic_node(state: InteractionState) -> Dict[str, Any]:
 
     logger.info("Executing self-verification audit node", persona=persona["name"])
 
-    # Attach verification seal
     verification_header = f"**[{persona['title']} Audit Verification]**\n\n"
     verified_answer = verification_header + final_answer
 

@@ -11,8 +11,10 @@ from graph.nodes.sql_agent import generate_sql_node, execute_sql_node
 from graph.nodes.cypher_agent import generate_cypher_node, execute_cypher_node
 from graph.nodes.vector_agent import generate_vector_node, execute_vector_node
 from graph.nodes.synthesizer import synthesize_node
+from graph.nodes.employee_critic import employee_critic_node
 
 logger = structlog.get_logger(__name__)
+
 
 brain_graph = None
 _checkpointer_cm = None
@@ -55,6 +57,7 @@ def build_workflow() -> StateGraph:
     workflow.add_node("generate_vector", generate_vector_node)
     workflow.add_node("execute_vector", execute_vector_node)
     workflow.add_node("synthesizer", synthesize_node)
+    workflow.add_node("employee_critic", employee_critic_node)
 
     workflow.set_entry_point("supervisor")
 
@@ -88,7 +91,8 @@ def build_workflow() -> StateGraph:
         should_retry,
         {"retry": "generate_vector", "end": "synthesizer"},
     )
-    workflow.add_edge("synthesizer", END)
+    workflow.add_edge("synthesizer", "employee_critic")
+    workflow.add_edge("employee_critic", END)
     return workflow
 
 

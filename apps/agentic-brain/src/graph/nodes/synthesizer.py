@@ -1,4 +1,4 @@
-import structlog
+from core.db import structlog
 from llm.factory import LLMFactory, ModelTier
 from langchain_core.messages import SystemMessage, HumanMessage
 from graph.state import InteractionState
@@ -18,19 +18,24 @@ async def synthesize_node(state: InteractionState) -> dict:
     
     llm = LLMFactory.get_llm(tier=ModelTier.FRONTIER)
     
-    system_prompt = """You are a master data synthesizer for a Tri-Modal AI Brain.
+    document_id = state.get("document_id")
+    doc_context = f"Target Document: {document_id}" if document_id else "Target Document: ALL (Global Knowledge Base)"
+    
+    system_prompt = f"""You are a master data synthesizer and intelligent financial assistant for Agentic Brain.
 You have been given raw data from up to three distinct sources:
 1. SQL / Postgres (exact extracted table rows from views, plus Cube aggregations when present)
 2. Graph Database (Relationships, nodes, edges)
 3. Vector Database (Unstructured text, clauses)
 
-Your job is to read the user's intent and synthesize all the provided data into a cohesive, highly accurate, beautifully formatted markdown response.
-When SQL exact-row data conflicts with vector text, prefer the SQL/Postgres extracted values for numbers and structured fields.
-If SQL data is marked provisional / NEEDS_REVIEW / data_quality=provisional, still use it when it is the best available evidence, but state that figures are provisional pending review.
-Prefer verified/MAPPED SQL values over provisional ones when both appear.
-If a data source is empty, ignore it.
-Do NOT mention the databases (e.g. "The graph database says..."). Just provide the synthesized facts.
-When provenance references are provided, include markdown citation links using the exact href format given.
+Your job is to read the user's intent and synthesize a cohesive, highly accurate, beautifully formatted markdown response.
+
+Guidelines:
+- {doc_context}
+- When retrieved RAG data is present, synthesize all provided facts accurately. When SQL exact-row data conflicts with vector text, prefer the SQL/Postgres extracted values for numbers.
+- If the retrieved RAG data is empty or insufficient, OR if the user's question is a general query, concept explanation, greeting, or financial definition (e.g., "What is Interest Coverage Ratio?", "Hello", "How to calculate EBITDA"), answer the question directly, thoroughly, and helpfully using your general knowledge.
+- Never output an empty response or claim "no data found" when a general concept or greeting can be answered directly.
+- Do NOT mention internal database names (e.g. "The graph database says..."). Just provide clear, synthesized facts.
+- When provenance references are provided, include markdown citation links using the exact href format given.
 """
     
     user_msg = ""

@@ -15,6 +15,7 @@ class VectorQueryOutput(BaseModel):
 async def generate_vector_node(state: InteractionState) -> dict:
     """
     Generates a semantic search query based on the user's intent.
+    Uses Frontier LLM for generating an optimized semantic query.
     """
     logger.info("Generating Vector Query")
     
@@ -24,7 +25,24 @@ async def generate_vector_node(state: InteractionState) -> dict:
             user_msg = msg.content
             break
             
-    return {"vector_query": user_msg}
+    llm = LLMFactory.get_structured_llm(VectorQueryOutput, ModelTier.FRONTIER)
+    system_prompt = """You are an expert search query generator for Agentic Brain.
+Given the user's question, generate the optimal semantic search string to query the Qdrant vector database.
+- Strip out conversational filler (e.g. 'Can you tell me about').
+- Focus on the core keywords, concepts, and entities.
+- If they ask about specific disclosures, policies, or risks, include those terms in the query.
+"""
+    try:
+        response = await llm.ainvoke([
+            SystemMessage(content=system_prompt),
+            HumanMessage(content=user_msg)
+        ])
+        vector_query = response.search_query or user_msg
+    except Exception as e:
+        logger.error("Vector Planner LLM failed", error=str(e))
+        vector_query = user_msg
+
+    return {"vector_query": vector_query}
 
 async def execute_vector_node(state: InteractionState) -> dict:
     """
@@ -68,31 +86,9 @@ async def execute_vector_node(state: InteractionState) -> dict:
             
         context_str = "\n\n---\n\n".join(context_texts) if context_texts else "(no matching chunks)"
         
-        user_msg = ""
-        for msg in reversed(state.get("messages", [])):
-            if isinstance(msg, HumanMessage):
-                user_msg = msg.content
-                break
-                
-        llm = LLMFactory.get_llm(tier=ModelTier.STANDARD)
-        
-        system_prompt = f"""You are an expert Q&A assistant.
-Answer the user's question based ONLY on the following context retrieved from semantic search. 
-If you cannot answer the question based on the context, say "I don't know based on the provided documents."
-
-<context>
-{context_str}
-</context>
-"""
-        
-        response = await llm.ainvoke([
-            SystemMessage(content=system_prompt),
-            HumanMessage(content=user_msg)
-        ])
-        
         return {
             "error_message": "",
-            "vector_result": response.content,
+            "vector_result": context_str,
             "references": references
         }
         
