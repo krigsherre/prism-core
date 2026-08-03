@@ -2,7 +2,7 @@
 
 These are papers, books, and systems I studied while designing Prism — grouped by the decision they informed. Not a flex list: each item maps to something in the codebase.
 
-For the product narrative see [`SUBMISSION.md`](SUBMISSION.md). For diagrams see [`HLD.md`](HLD.md).
+For the project showcase see [`README.md`](README.md). For diagrams see [`architecture.md`](architecture.md).
 
 ---
 
