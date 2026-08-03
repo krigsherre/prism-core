@@ -18,7 +18,8 @@ config.set_main_option("sqlalchemy.url", settings.database_url.replace("postgres
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-target_metadata = None
+from db.models import Base
+target_metadata = Base.metadata
 
 
 def run_migrations_offline() -> None:

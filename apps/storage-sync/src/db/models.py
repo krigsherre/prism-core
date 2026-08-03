@@ -39,6 +39,9 @@ class DocumentJob(Base):
     error_message = Column(String, nullable=True)
     s3_uri = Column(String(1024), nullable=True)
     file_hash = Column(String(255), nullable=True)
+    company_name = Column(String(255), nullable=True)
+    ticker = Column(String(50), nullable=True)
+    fiscal_period = Column(String(50), nullable=True)
     sql_mapped = Column(sa.Boolean, nullable=False, server_default="false", default=False)
     vector_mapped = Column(sa.Boolean, nullable=False, server_default="false", default=False)
     graph_mapped = Column(sa.Boolean, nullable=False, server_default="false", default=False)
@@ -115,4 +118,24 @@ class ExtractionCorrection(Base):
     reflexion_meta = Column(JSONB, nullable=True)
     hitl_request_id: Mapped[str] = mapped_column(String(255), nullable=True)
     promoted_to_eval: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, server_default="false", default=False)
+    created_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+class ChatAuditLog(Base):
+    """
+    Audit log for agentic chat sessions including token counts and exact LLM traces.
+    """
+    __tablename__ = "chat_audit_logs"
+
+    id: Mapped[str] = mapped_column(String(255), primary_key=True)
+    tenant_id: Mapped[str] = mapped_column(String(255), index=True, nullable=False)
+    thread_id: Mapped[str] = mapped_column(String(255), index=True, nullable=False)
+    document_id: Mapped[str] = mapped_column(String(255), nullable=True)
+    user_message: Mapped[str] = mapped_column(Text, nullable=False)
+    agent_response: Mapped[str] = mapped_column(Text, nullable=False)
+    sql_accessed: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, server_default="false", default=False)
+    vector_accessed: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, server_default="false", default=False)
+    graph_accessed: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, server_default="false", default=False)
+    llm_traces = Column(JSONB, nullable=True)
+    input_tokens = Column(Integer, nullable=True)
+    output_tokens = Column(Integer, nullable=True)
     created_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

@@ -22,28 +22,56 @@ class DocumentRouter:
         self.sql_repo = sql_repo
         self.qdrant_repo = qdrant_repo
         self.embeddings = None
-        self._http_client = httpx.AsyncClient(timeout=10.0)
+        self._http_client = httpx.AsyncClient(timeout=30.0)
+        self._embedding_semaphore = asyncio.Semaphore(10)
 
-    async def _real_embedding(self, text: str):
-        safe_text = text[:2000] if text else ""
-        if not safe_text:
-            return [0.0] * 384
+    async def precompute_embeddings(self, nodes: list) -> dict:
+        """Precompute TEI embeddings in batches to drastically improve throughput."""
+        texts_to_embed = []
+        
+        def _collect(n_list):
+            for n in n_list:
+                if n.content and n.content.strip() and n.type != dom_pb2.NODE_TYPE_IMAGE:
+                    texts_to_embed.append((n.id, n.content[:2000]))
+                if len(n.children) > 0:
+                    _collect(n.children)
+                    
+        _collect(nodes)
+        
+        if not texts_to_embed:
+            return {}
             
-        try:
-            response = await self._http_client.post(
-                "http://embeddings-server:80/embed",
-                json={"inputs": safe_text}
-            )
-            if response.status_code == 200:
-                data = response.json()
-                if isinstance(data, list) and len(data) > 0:
-                    if isinstance(data[0], list):
-                        return data[0]
-                    return data
-        except Exception as e:
-            logger.error("TEI embedding failed", error=str(e))
+        embeddings_map = {}
+        batch_size = 8
+        
+        for i in range(0, len(texts_to_embed), batch_size):
+            batch = texts_to_embed[i:i+batch_size]
+            batch_ids = [item[0] for item in batch]
+            batch_texts = [item[1] for item in batch]
             
-        return [0.0] * 384
+            try:
+                response = await self._http_client.post(
+                    "http://embeddings-server:80/embed",
+                    json={"inputs": batch_texts}
+                )
+                if response.status_code == 200:
+                    data = response.json()
+                    if isinstance(data, list):
+                        for idx, b_id in enumerate(batch_ids):
+                            if idx < len(data):
+                                embeddings_map[b_id] = data[idx]
+                else:
+                    logger.error("TEI batch embedding returned non-200", status=response.status_code)
+            except Exception as e:
+                logger.error("TEI batch embedding failed", error=repr(e))
+                
+        return embeddings_map
+
+    def _get_embedding(self, node: dom_pb2.Node, precomputed: dict) -> list:
+        if precomputed and node.id in precomputed:
+            return precomputed[node.id]
+        # Use a non-zero dummy vector to prevent Qdrant Cosine/BinaryQuantization division-by-zero crashes
+        return [1e-5] * 384
 
     _OTSL_MARKERS = ("<fcel>", "<nl>", "<ecel>", "<lcel>", "<ucel>")
 
@@ -430,7 +458,9 @@ class DocumentRouter:
     async def route_node(
         self, tenant_id: str, document_id: str, node: dom_pb2.Node, 
         producer=None, parent_text: str = "", user_id: str = None, 
-        siblings: list = None, node_index: int = 0
+        siblings: list = None, node_index: int = 0,
+        precomputed_embeddings: dict = None,
+        point_batch: list = None
     ) -> dict:
         
         metrics = {
@@ -443,13 +473,13 @@ class DocumentRouter:
             full_context = self._build_full_context(parent_text, siblings, node_index)
 
             if node.type == dom_pb2.NODE_TYPE_TABLE:
-                await self._route_table(tenant_id, document_id, node, producer, prov, full_context, parent_text, user_id, metrics)
+                await self._route_table(tenant_id, document_id, node, producer, prov, full_context, parent_text, user_id, metrics, precomputed_embeddings, point_batch)
                 
             elif node.type in (dom_pb2.NODE_TYPE_KEY_VALUE, dom_pb2.NODE_TYPE_FORM):
-                await self._route_kv(tenant_id, document_id, node, producer, prov, full_context, parent_text, user_id, metrics)
+                await self._route_kv(tenant_id, document_id, node, producer, prov, full_context, parent_text, user_id, metrics, precomputed_embeddings, point_batch)
                 
             elif node.type in (dom_pb2.NODE_TYPE_TEXT, dom_pb2.NODE_TYPE_SECTION_HEADER, dom_pb2.NODE_TYPE_TITLE, dom_pb2.NODE_TYPE_CHECKBOX, dom_pb2.NODE_TYPE_CODE):
-                await self._route_unstructured(tenant_id, document_id, node, producer, prov, full_context, parent_text, user_id, metrics)
+                await self._route_unstructured(tenant_id, document_id, node, producer, prov, full_context, parent_text, user_id, metrics, precomputed_embeddings, point_batch)
                 
             elif node.type == dom_pb2.NODE_TYPE_IMAGE:
                 logger.info("Skipped IMAGE node routing (unsupported)", node_id=node.id)
@@ -457,12 +487,18 @@ class DocumentRouter:
             current_parent_text = node.content if node.type in (dom_pb2.NODE_TYPE_SECTION_HEADER, dom_pb2.NODE_TYPE_TITLE) else parent_text
             children = list(node.children)
             
-            for i, child in enumerate(children):
-                child_metrics = await self.route_node(
-                    tenant_id, document_id, child, producer, 
-                    parent_text=current_parent_text, siblings=children, node_index=i
-                )
-                self.merge_metrics(metrics, child_metrics)
+            if children:
+                async def process_child(i, child):
+                    return await self.route_node(
+                        tenant_id, document_id, child, producer, 
+                        parent_text=current_parent_text, siblings=children, node_index=i,
+                        precomputed_embeddings=precomputed_embeddings,
+                        point_batch=point_batch
+                    )
+                child_tasks = [process_child(i, child) for i, child in enumerate(children)]
+                child_results = await asyncio.gather(*child_tasks)
+                for child_metrics in child_results:
+                    self.merge_metrics(metrics, child_metrics)
 
         except Exception as e:
             logger.error("Failed to route node", error=str(e), node_id=node.id)
@@ -506,7 +542,7 @@ class DocumentRouter:
         parent_metrics["sql_nodes_count"] += child_metrics.get("sql_nodes_count", 0)
         parent_metrics["graph_nodes_count"] += child_metrics.get("graph_nodes_count", 0)
 
-    async def _route_table(self, tenant_id, document_id, node, producer, prov, full_context, parent_text, user_id, metrics):
+    async def _route_table(self, tenant_id, document_id, node, producer, prov, full_context, parent_text, user_id, metrics, precomputed_embeddings, point_batch=None):
         extracted = self._parse_table_content(node.content)
         # Prefer rendered markdown from structured data so aligner chunking is reliable
         markdown = self._dict_to_markdown_table(extracted) if extracted else (node.content or "")
@@ -529,7 +565,7 @@ class DocumentRouter:
 
         if node.content and node.content.strip():
             try:
-                vector = await self._real_embedding(node.content)
+                vector = self._get_embedding(node, precomputed_embeddings)
                 metadata = {
                     "tenant_id": tenant_id, "document_id": document_id, "node_id": node.id,
                     "node_type": "NODE_TYPE_TABLE", "content": node.content,
@@ -537,13 +573,19 @@ class DocumentRouter:
                     "source_page": prov["page_number"], "source_bbox": prov["bounding_box"],
                     "user_id": user_id
                 }
-                await self.qdrant_repo.upsert_vector(node_id=node.id, document_id=document_id, vector=vector, payload=metadata)
+                if point_batch is not None:
+                    import uuid
+                    from qdrant_client import models
+                    qdrant_id = str(uuid.uuid5(uuid.NAMESPACE_OID, node.id))
+                    point_batch.append(models.PointStruct(id=qdrant_id, vector=vector, payload=metadata))
+                else:
+                    await self.qdrant_repo.upsert_vector(node_id=node.id, document_id=document_id, vector=vector, payload=metadata)
                 logger.info("Dual-routed table node to Qdrant Vector DB", node_id=node.id)
                 metrics["vector_mapped"] = True
             except Exception as e:
                 logger.error("Failed to embed table to Qdrant", error=str(e), node_id=node.id)
 
-    async def _route_kv(self, tenant_id, document_id, node, producer, prov, full_context, parent_text, user_id, metrics):
+    async def _route_kv(self, tenant_id, document_id, node, producer, prov, full_context, parent_text, user_id, metrics, precomputed_embeddings, point_batch=None):
         payload = {
             "tenant_id": tenant_id, "document_id": document_id, "node_id": node.id,
             "target_table": "", "extracted_data": self._parse_kv_content(node.content),
@@ -562,35 +604,48 @@ class DocumentRouter:
 
         if node.content and node.content.strip():
             try:
-                vector = await self._real_embedding(node.content)
+                vector = self._get_embedding(node, precomputed_embeddings)
                 metadata = {
                     "tenant_id": tenant_id, "document_id": document_id, "node_id": node.id,
                     "node_type": dom_pb2.NodeType.Name(node.type), "content": node.content,
                     "parent_section_text": parent_text, "is_key_value": True,
                     "source_page": prov["page_number"], "source_bbox": prov["bounding_box"]
                 }
-                await self.qdrant_repo.upsert_vector(node_id=node.id, document_id=document_id, vector=vector, payload=metadata)
+                if point_batch is not None:
+                    import uuid
+                    from qdrant_client import models
+                    qdrant_id = str(uuid.uuid5(uuid.NAMESPACE_OID, node.id))
+                    point_batch.append(models.PointStruct(id=qdrant_id, vector=vector, payload=metadata))
+                else:
+                    await self.qdrant_repo.upsert_vector(node_id=node.id, document_id=document_id, vector=vector, payload=metadata)
                 logger.info("Dual-routed key-value/form node to Qdrant Vector DB", node_id=node.id)
                 metrics["vector_mapped"] = True
             except Exception as e:
                 logger.error("Failed to embed KV node to Qdrant", error=str(e), node_id=node.id)
 
-    async def _route_unstructured(self, tenant_id, document_id, node, producer, prov, full_context, parent_text, user_id, metrics):
+    async def _route_unstructured(self, tenant_id, document_id, node, producer, prov, full_context, parent_text, user_id, metrics, precomputed_embeddings, point_batch=None):
         if not (node.content and node.content.strip()):
             return
             
         try:
-            vector = await self._real_embedding(node.content)
+            vector = self._get_embedding(node, precomputed_embeddings)
             type_name = dom_pb2.NodeType.Name(node.type)
-            await self.qdrant_repo.upsert_vector(
-                node_id=node.id, document_id=document_id, vector=vector,
-                payload={
-                    "tenant_id": tenant_id,
-                    "text": node.content, "type": type_name,
-                    "parent_section_text": parent_text, "source_page": prov["page_number"],
-                    "source_bbox": prov["bounding_box"]
-                }
-            )
+            payload={
+                "tenant_id": tenant_id,
+                "text": node.content, "type": type_name,
+                "parent_section_text": parent_text, "source_page": prov["page_number"],
+                "source_bbox": prov["bounding_box"]
+            }
+            if point_batch is not None:
+                import uuid
+                from qdrant_client import models
+                qdrant_id = str(uuid.uuid5(uuid.NAMESPACE_OID, node.id))
+                point_batch.append(models.PointStruct(id=qdrant_id, vector=vector, payload=payload))
+            else:
+                await self.qdrant_repo.upsert_vector(
+                    node_id=node.id, document_id=document_id, vector=vector,
+                    payload=payload
+                )
             logger.info("Routed node to Qdrant", node_id=node.id, node_type=type_name)
             metrics["vector_mapped"] = True
             
@@ -621,7 +676,7 @@ class DocumentRouter:
                         logger.error("Failed to route node to Graph Agent", error=str(e), node_id=node.id)
                     
         except Exception as e:
-            logger.error("Failed to route node to Qdrant", error=str(e), node_id=node.id)
+            logger.error("Failed to route node to Qdrant", error=repr(e), node_id=node.id)
 
 
 class BifurcationConsumer:
@@ -707,16 +762,65 @@ class BifurcationConsumer:
         
         overall_metrics = {
             "sql_mapped": False, "vector_mapped": False, "graph_mapped": False,
-            "sql_nodes_count": 0, "graph_nodes_count": 0
+            "sql_nodes_count": 0, "graph_nodes_count": 0,
+            "company_name": None, "ticker": None, "fiscal_period": None
         }
+        
+        # Extract metadata from the first few pages of text
+        extracted_text_chunks = []
+        char_count = 0
+        for n in dom.nodes:
+            if n.content and n.type == dom_pb2.NODE_TYPE_TEXT:
+                extracted_text_chunks.append(n.content)
+                char_count += len(n.content)
+                if char_count > 10000:
+                    break
+                    
+        if extracted_text_chunks:
+            sample_text = "\n".join(extracted_text_chunks)[:10000]
+            try:
+                import httpx
+                async with httpx.AsyncClient(timeout=15.0) as client:
+                    resp = await client.post(
+                        "http://agentic-brain:8000/api/internal/extract-metadata",
+                        json={"text": sample_text}
+                    )
+                    if resp.status_code == 200:
+                        meta_data = resp.json()
+                        overall_metrics["company_name"] = meta_data.get("company_name")
+                        overall_metrics["ticker"] = meta_data.get("ticker")
+                        overall_metrics["fiscal_period"] = meta_data.get("fiscal_period")
+                        logger.info("Extracted metadata", metadata=meta_data, document_id=document_id)
+            except Exception as e:
+                logger.error("Failed to extract metadata via internal API", error=str(e), document_id=document_id)
         
         stitched_nodes = self.router._stitch_table_nodes(list(dom.nodes))
         
-        for i, node in enumerate(stitched_nodes):
-            flags = await self.router.route_node(
+        precomputed = await self.router.precompute_embeddings(stitched_nodes)
+        
+        point_batch = []
+        async def process_node(i, node):
+            return await self.router.route_node(
                 tenant_id, document_id, node, self._producer,
-                user_id=user_id, siblings=stitched_nodes, node_index=i
+                user_id=user_id, siblings=stitched_nodes, node_index=i,
+                precomputed_embeddings=precomputed,
+                point_batch=point_batch
             )
+
+        tasks = [process_node(i, node) for i, node in enumerate(stitched_nodes)]
+        results = await asyncio.gather(*tasks)
+        
+        if point_batch:
+            batch_size = 256
+            for i in range(0, len(point_batch), batch_size):
+                chunk = point_batch[i:i+batch_size]
+                try:
+                    await self.router.qdrant_repo.upsert_batch(chunk)
+                    logger.info("Upserted batch to Qdrant", batch_size=len(chunk), document_id=document_id)
+                except Exception as e:
+                    logger.error("Failed to upsert batch to Qdrant", error=str(e), document_id=document_id)
+        
+        for flags in results:
             self.router.merge_metrics(overall_metrics, flags)
             
         await self._publish_completion_status(tenant_id, document_id, filename, overall_metrics)
@@ -737,6 +841,9 @@ class BifurcationConsumer:
             "graph_mapped": metrics["graph_mapped"],
             "sql_nodes_total": metrics["sql_nodes_count"],
             "graph_nodes_total": metrics["graph_nodes_count"],
+            "company_name": metrics.get("company_name"),
+            "ticker": metrics.get("ticker"),
+            "fiscal_period": metrics.get("fiscal_period"),
         })
         
         try:

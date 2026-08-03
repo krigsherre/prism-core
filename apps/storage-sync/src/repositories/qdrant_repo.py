@@ -12,7 +12,7 @@ logger = structlog.get_logger(__name__)
 
 class QdrantRepository:
     def __init__(self) -> None:
-        self.client = AsyncQdrantClient(url=settings.qdrant_url, api_key=settings.qdrant_api_key if settings.qdrant_api_key != "test-qdrant-key-12345" else None)
+        self.client = AsyncQdrantClient(url=settings.qdrant_url, api_key=settings.qdrant_api_key if settings.qdrant_api_key != "test-qdrant-key-12345" else None, timeout=120.0)
         self.collection_name = settings.qdrant_collection_name
         
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10), reraise=True)
@@ -38,6 +38,20 @@ class QdrantRepository:
                 "Created Qdrant collection with binary quantization",
                 collection=self.collection_name,
             )
+            
+            # Create a text index for BM25/keyword hybrid search
+            await self.client.create_payload_index(
+                collection_name=self.collection_name,
+                field_name="content",
+                field_schema=models.TextIndexParams(
+                    type="text",
+                    tokenizer=models.TokenizerType.WORD,
+                    min_token_len=2,
+                    max_token_len=30,
+                    lowercase=True,
+                )
+            )
+            logger.info("Created payload index for 'content' field", collection=self.collection_name)
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10), reraise=True)
     async def upsert_vector(self, node_id: str, document_id: str, vector: List[float], payload: Dict[str, Any]) -> None:
@@ -54,7 +68,18 @@ class QdrantRepository:
                         **payload
                     }
                 )
-            ]
+            ],
+            wait=False
+        )
+
+    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10), reraise=True)
+    async def upsert_batch(self, points: List[models.PointStruct]) -> None:
+        if not points:
+            return
+        await self.client.upsert(
+            collection_name=self.collection_name,
+            points=points,
+            wait=False
         )
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10), reraise=True)

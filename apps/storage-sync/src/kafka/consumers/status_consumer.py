@@ -177,7 +177,7 @@ class StatusConsumer:
             "error_message": payload.get("error_message")
         }
         
-        optional_fields = ["s3_uri", "file_hash", "sql_mapped", "vector_mapped", "graph_mapped", "sql_nodes_total", "graph_nodes_total"]
+        optional_fields = ["s3_uri", "file_hash", "sql_mapped", "vector_mapped", "graph_mapped", "sql_nodes_total", "graph_nodes_total", "company_name", "ticker", "fiscal_period"]
         for field in optional_fields:
             if payload.get(field) is not None:
                 insert_values[field] = payload.get(field)
