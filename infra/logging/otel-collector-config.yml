@@ -17,7 +17,7 @@ exporters:
     tls:
       insecure: true
   
-  logging:
+  debug:
     verbosity: detailed
 
 service:
@@ -25,4 +25,4 @@ service:
     traces:
       receivers: [otlp]
       processors: [batch]
-      exporters: [otlp, logging]
+      exporters: [otlp, debug]

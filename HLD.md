@@ -349,7 +349,7 @@ flowchart TB
 
 ## Data, briefly
 
-Shared protobufs (`IngestEvent`, `DocumentDOM`) keep Go and Python honest.
+The system strictly decouples services into isolated **Kafka producers and consumers**. Shared protobufs (`IngestEvent`, `DocumentDOM`) keep Go and Python honest across these event boundaries.
 
 ```mermaid
 erDiagram

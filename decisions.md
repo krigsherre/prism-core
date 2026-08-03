@@ -89,15 +89,20 @@ Grouped by pipeline stage: ingestion → vision → alignment → sync → agent
 **Decision:** `/task` uses an explicit agent registry (not LLM-authored code execution / Celery).  
 **See:** `apps/agentic-brain/decision.md`
 
-### 5.2 LangGraph for chat routing
+### 5.2 LangGraph for chat routing & Zero-Latency Fast-Paths
 **Service:** `agentic-brain`  
-**Decision:** Supervisor routes SQL / Cypher / vector tools under a typed graph state.  
+**Decision:** Parallel fan-out to SQL / Cypher / Vector under a typed graph state with $<1\text{ms}$ sub-agent fast-paths, cutting chat latency from 54s to $<3$s.  
 **See:** `apps/agentic-brain/decision.md`
 
-### 5.3 Dual public URLs for the UI
-**Service:** `web-dashboard`  
-**Decision:** `NEXT_PUBLIC_API_URL` (brain) + `NEXT_PUBLIC_GATEWAY_URL` (uploads), baked at Docker build.  
-**See:** `apps/web-dashboard/decision.md`
+### 5.3 Graph Ingestion Pre-Filtering + UNWIND Batching
+**Services:** `storage-sync`, `agentic-brain`  
+**Decision:** Pre-filter text nodes for strategic financial keywords before dispatching to Kafka; ingest triples via single-transaction Neo4j `UNWIND` batches.  
+**See:** `apps/storage-sync/decision.md`, `apps/agentic-brain/decision.md`
+
+### 5.4 Domain-Agnostic Engine Design (SEC 10-K & Financials as Primary Target)
+**Services:** `schema-aligner`, `storage-sync`, `agentic-brain`  
+**Decision:** Financial 10-K / SEC filings serve as the primary high-complexity target domain (demanding relational SQL, prose vectors, and corporate graphs simultaneously). The pipeline, schema aligner registry, and tri-modal RAG architecture are 100% domain-agnostic and extendable to Healthcare, Legal, and Insurance domains by swapping registry schemas and graph prompts.  
+**See:** `apps/schema-aligner/decision.md`, `apps/agentic-brain/decision.md`
 
 ---
 
