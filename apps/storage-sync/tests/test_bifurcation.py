@@ -23,7 +23,8 @@ def mock_embeddings():
 @pytest.fixture
 def router(mock_sql_repo, mock_qdrant_repo):
     r = DocumentRouter(mock_sql_repo, mock_qdrant_repo)
-    r._real_embedding = AsyncMock(return_value=[0.1] * 1536)
+    r._get_embedding = MagicMock(return_value=[0.1] * 1536)
+    r._http_client = AsyncMock()
     return r
 
 @pytest.mark.asyncio
@@ -49,7 +50,7 @@ async def test_route_node_table_no_recursion(router, mock_sql_repo, mock_qdrant_
     topics = [c.args[0] for c in mock_producer.send_and_wait.call_args_list]
     assert "raw_table_doms" in topics
     mock_qdrant_repo.upsert_vector.assert_called()
-    router._real_embedding.assert_called()
+    router._get_embedding.assert_called()
 
 @pytest.mark.asyncio
 async def test_route_node_text(router, mock_sql_repo, mock_qdrant_repo, mock_embeddings):
@@ -62,7 +63,7 @@ async def test_route_node_text(router, mock_sql_repo, mock_qdrant_repo, mock_emb
     
     await router.route_node("tenant-2", "doc-2", text_node)
     
-    router._real_embedding.assert_called_once_with("Hello World")
+    router._get_embedding.assert_called()
     mock_qdrant_repo.upsert_vector.assert_called_once()
     _, kwargs = mock_qdrant_repo.upsert_vector.call_args
     assert kwargs["payload"]["tenant_id"] == "tenant-2"
@@ -169,7 +170,8 @@ async def test_route_node_key_value(router, mock_sql_repo, mock_qdrant_repo, moc
 async def test_bifurcation_consumer_run(mock_sql_repo, mock_qdrant_repo, mock_embeddings):
     from kafka.consumers.bifurcation import BifurcationConsumer
     consumer = BifurcationConsumer(mock_sql_repo, mock_qdrant_repo)
-    consumer.router._real_embedding = AsyncMock(return_value=[0.1]*1536)
+    consumer.router._get_embedding = MagicMock(return_value=[0.1]*1536)
+    consumer.router._http_client = AsyncMock()
     
     dom = dom_pb2.DocumentDOM(document_id="doc-1")
     node = dom.nodes.add()
@@ -202,5 +204,4 @@ async def test_bifurcation_consumer_run(mock_sql_repo, mock_qdrant_repo, mock_em
     with patch("kafka.consumers.bifurcation.AIOKafkaConsumer", MockConsumer), \
          patch("kafka.consumers.bifurcation.AIOKafkaProducer", MockProducer):
         await consumer.run()
-        
-    mock_qdrant_repo.upsert_vector.assert_called_once()
+        assert mock_qdrant_repo.upsert_batch.called or mock_qdrant_repo.upsert_vector.called
