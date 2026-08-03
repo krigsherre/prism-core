@@ -6,7 +6,6 @@ def test_graph_consumer_high_signal_filter():
     """Verify high-signal text filtering to control Neo4j ingestion volume."""
     consumer = GraphConsumer()
 
-    # High signal texts (should return True)
     rpt_text = "Note 34: Related Party Transactions with Reliance Retail Limited during FY24."
     subsidiary_text = "List of Subsidiaries and Joint Ventures as of March 31, 2024."
     director_text = "Appointment of Independent Directors and Key Managerial Personnel."
@@ -17,7 +16,6 @@ def test_graph_consumer_high_signal_filter():
     assert consumer._is_high_signal_text(director_text) is True
     assert consumer._is_high_signal_text(debt_text) is True
 
-    # Low signal generic narrative (should return False)
     generic_text = "Thank you for attending the Annual General Meeting. Welcome to our report."
     short_text = "Page 14"
 

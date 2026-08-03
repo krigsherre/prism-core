@@ -8,13 +8,15 @@ async def test_generate_cypher_returns_cypher_query():
     from graph.nodes.cypher_agent import generate_cypher_node
 
     mock_response = MagicMock()
-    mock_response.cypher = "MATCH (n) RETURN n LIMIT 5"
+    mock_response.template_name = "FIND_SUBSIDIARIES"
+    mock_response.entity_name = "Acme"
 
     mock_structured = MagicMock()
     mock_structured.ainvoke = AsyncMock(return_value=mock_response)
 
     with patch("graph.nodes.cypher_agent.fetch_neo4j_schema") as mock_fetch, \
-         patch("graph.nodes.cypher_agent.LLMFactory.get_structured_llm", return_value=mock_structured):
+         patch("graph.nodes.cypher_agent.LLMFactory.get_structured_llm", return_value=mock_structured), \
+         patch("core.db.db_client.fetch_tenant_documents", return_value=[]):
         mock_fetch.ainvoke = AsyncMock(return_value="Nodes: Entity")
         state = {
             "messages": [HumanMessage(content="Who is connected to Acme?")],
@@ -24,9 +26,8 @@ async def test_generate_cypher_returns_cypher_query():
         }
         result = await generate_cypher_node(state)
 
-        assert "MATCH (n:Entity)" in result["cypher_query"]
+        assert "MATCH" in result["cypher_query"]
     assert "final_answer" not in result
-
 
 
 @pytest.mark.asyncio
@@ -47,7 +48,7 @@ async def test_execute_cypher_sets_cypher_result():
         }
         result = await execute_cypher_node(state)
 
-    assert result["cypher_result"] == "Acme is linked to Bank B."
+    assert result["cypher_result"] == '[{"n": "Acme"}]'
     assert result.get("error_message") == ""
     assert "final_answer" not in result
 

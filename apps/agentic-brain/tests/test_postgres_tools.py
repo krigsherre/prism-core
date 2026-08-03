@@ -81,14 +81,12 @@ def test_query_exact_rows_rejects_non_allowlisted_view():
             "limit": 10,
         }
     )
-    # Non-allowlisted names fall back to extracted_tables (or error if DB unavailable).
     assert "SQL Error" in result or "extracted_tables" in result
 
 
 @patch("tools.postgres_tools._run_async")
 def test_query_exact_rows_success(mock_run):
     def _consume(coro):
-        # Prevent "coroutine was never awaited" when _run_async is mocked
         if hasattr(coro, "close"):
             coro.close()
         return [

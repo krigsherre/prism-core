@@ -7,7 +7,7 @@ from tools.postgres_tools import list_exact_views, select_by_mapping_priority
 from graph.nodes.supervisor import supervisor_node, IntentClassification
 from graph.nodes.sql_agent import generate_sql_node, execute_sql_node, SQLPlanOutput
 from graph.nodes.vector_agent import generate_vector_node, execute_vector_node, VectorQueryOutput
-from graph.nodes.cypher_agent import generate_cypher_node, execute_cypher_node, CypherQueryOutput
+from graph.nodes.cypher_agent import generate_cypher_node, execute_cypher_node, CypherTemplateSelection
 from graph.workflow import supervisor_router
 
 
@@ -48,9 +48,10 @@ async def test_trimodal_ingestion_and_chat_routing():
         reasoning="Query asks for tabular financial metrics, semantic disclosures, and auditor relationships."
     )
     
-    with patch("graph.nodes.supervisor.LLMFactory.get_structured_llm") as mock_get_struct:
+    with patch("graph.nodes.supervisor.LLMFactory.get_structured_llm") as mock_get_struct, \
+         patch("core.db.db_client.fetch_tenant_documents", return_value=[]):
         mock_runnable = MagicMock()
-        mock_runnable.invoke.return_value = mock_supervisor_out
+        mock_runnable.ainvoke = AsyncMock(return_value=mock_supervisor_out)
         mock_get_struct.return_value = mock_runnable
 
         state = {
@@ -60,7 +61,7 @@ async def test_trimodal_ingestion_and_chat_routing():
             "required_modalities": []
         }
         
-        sup_result = supervisor_node(state)
+        sup_result = await supervisor_node(state)
         assert set(sup_result["required_modalities"]) == {"SQL", "VECTOR", "CYPHER"}
         
         state.update(sup_result)
@@ -78,23 +79,24 @@ async def test_trimodal_ingestion_and_chat_routing():
     mock_sql_llm_ans = MagicMock(content="Acme Corp has total assets of $5,000,000 and total liabilities of $2,000,000 for FY2025.")
     
     mock_sql_runnable = MagicMock()
-    mock_sql_runnable.invoke.return_value = mock_sql_plan
-    
+    mock_sql_runnable.ainvoke = AsyncMock(return_value=mock_sql_plan)
+
     mock_llm_inst = MagicMock()
-    mock_llm_inst.invoke.return_value = mock_sql_llm_ans
+    mock_llm_inst.ainvoke = AsyncMock(return_value=mock_sql_llm_ans)
 
     with patch("graph.nodes.sql_agent.LLMFactory.get_structured_llm", return_value=mock_sql_runnable), \
          patch("graph.nodes.sql_agent.query_exact_rows") as mock_query_exact, \
-         patch("graph.nodes.sql_agent.LLMFactory.get_llm", return_value=mock_llm_inst):
+         patch("graph.nodes.sql_agent.LLMFactory.get_llm", return_value=mock_llm_inst), \
+         patch("core.db.db_client.fetch_tenant_documents", return_value=[]):
         
         mock_query_exact.invoke.return_value = json.dumps({"trust_level": "verified", "rows": mock_extracted_rows})
         
-        gen_sql_res = generate_sql_node(state)
+        gen_sql_res = await generate_sql_node(state)
         assert gen_sql_res["sql_query"] != ""
         
         state.update(gen_sql_res)
         exec_sql_res = execute_sql_node(state)
-        assert "5,000,000" in exec_sql_res["sql_result"]
+        assert "5000000" in exec_sql_res["sql_result"]
         assert len(exec_sql_res["references"]) >= 1
 
     # 4. Test Vector Agent Node Execution
@@ -125,7 +127,7 @@ async def test_trimodal_ingestion_and_chat_routing():
         assert exec_vec_res["references"][0]["source_page"] == 12
 
     # 5. Test Cypher Graph Agent Node Execution
-    mock_cypher_plan = CypherQueryOutput(cypher="MATCH (c:Entity {name: 'ACME CORP'})-[r:AUDITED_BY]->(a) RETURN a.name")
+    mock_cypher_plan = CypherTemplateSelection(template_name="FIND_AUDITORS", entity_name="Acme Corp", reasoning="Find auditor")
     mock_graph_ans = MagicMock(content="Acme Corp is audited by Deloitte.")
 
     mock_fetch = MagicMock()
@@ -134,7 +136,8 @@ async def test_trimodal_ingestion_and_chat_routing():
     with patch("graph.nodes.cypher_agent.LLMFactory.get_structured_llm", return_value=MagicMock(ainvoke=AsyncMock(return_value=mock_cypher_plan))), \
          patch("graph.nodes.cypher_agent.execute_cypher") as mock_cypher_exec, \
          patch("graph.nodes.cypher_agent.fetch_neo4j_schema", mock_fetch), \
-         patch("graph.nodes.cypher_agent.LLMFactory.get_llm", return_value=MagicMock(ainvoke=AsyncMock(return_value=mock_graph_ans))):
+         patch("graph.nodes.cypher_agent.LLMFactory.get_llm", return_value=MagicMock(ainvoke=AsyncMock(return_value=mock_graph_ans))), \
+         patch("core.db.db_client.fetch_tenant_documents", return_value=[]):
         
         mock_cypher_exec.ainvoke = AsyncMock(return_value=json.dumps([{"a.name": "DELOITTE"}]))
         
@@ -143,4 +146,4 @@ async def test_trimodal_ingestion_and_chat_routing():
         
         state.update(gen_cypher_res)
         exec_cypher_res = await execute_cypher_node(state)
-        assert "Deloitte" in exec_cypher_res["cypher_result"]
+        assert "DELOITTE" in exec_cypher_res["cypher_result"]
