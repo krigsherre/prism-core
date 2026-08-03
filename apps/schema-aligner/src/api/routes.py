@@ -4,11 +4,26 @@ from pydantic import BaseModel, Field
 from aiokafka import AIOKafkaClient, AIOKafkaProducer
 from config.settings import settings
 import json
+import httpx
 import structlog
 
 logger = structlog.get_logger(__name__)
 
 router = APIRouter()
+
+AGENTIC_BRAIN_URL = "http://agentic-brain:8001"
+
+
+async def _mark_hitl_resolved(document_id: str) -> None:
+    """Fire-and-forget: mark the hitl_request row as RESOLVED in agentic-brain's DB."""
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            await client.post(
+                f"{AGENTIC_BRAIN_URL}/api/internal/hitl-resolve",
+                json={"document_id": document_id, "status": "RESOLVED"},
+            )
+    except Exception as e:
+        logger.warning("Could not mark HITL resolved", error=str(e), document_id=document_id)
 
 
 class ApproveGenericRequest(BaseModel):
@@ -64,6 +79,7 @@ async def approve_generic(req: ApproveGenericRequest):
             json.dumps(payload).encode("utf-8")
         )
         logger.info("Approved table as generic JSONB", document_id=req.document_id, node_id=req.node_id)
+        await _mark_hitl_resolved(req.document_id)
         return {"status": "success", "mapping_status": "GENERIC_APPROVED"}
     except Exception as e:
         logger.error("Failed to approve generic table", error=str(e))
@@ -91,10 +107,10 @@ async def divert_rag(req: DivertRagRequest):
             json.dumps(payload).encode("utf-8")
         )
         logger.info("Diverted unmapped table to RAG", document_id=req.document_id, node_id=req.node_id)
+        await _mark_hitl_resolved(req.document_id)
         return {"status": "success", "diverted": True}
     except Exception as e:
         logger.error("Failed to divert table to RAG", error=str(e))
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         await producer.stop()
-

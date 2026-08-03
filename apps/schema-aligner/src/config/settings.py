@@ -3,6 +3,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     kafka_broker: str = "localhost:9092"
+    kafka_output_topic: str = "aligned_sql_payloads"
     port: int = 8001
     chunk_size_rows: int = 10
     fuzzy_match_threshold: int = 80

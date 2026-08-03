@@ -420,6 +420,7 @@
     "eps_diluted": "float",
     "weighted_average_shares_basic": "float",
     "weighted_average_shares_diluted": "float",
+    "period": "str",
     "additional_metadata": "dict"
   },
   "standardized_balance_sheet": {
@@ -453,6 +454,7 @@
     "accumulated_other_comprehensive_income": "float",
     "treasury_stock": "float",
     "total_shareholders_equity": "float",
+    "period": "str",
     "additional_metadata": "dict"
   },
   "standardized_cash_flow": {
@@ -472,6 +474,7 @@
     "net_change_in_cash": "float",
     "cash_beginning_of_period": "float",
     "cash_end_of_period": "float",
+    "period": "str",
     "additional_metadata": "dict"
   },
   "sec_10k_footnote_schedule": {

@@ -317,14 +317,20 @@ class WaterfallAlignmentStrategy:
             meta = self.critic_agent.annotate_meta({}, preflight)
             return [], [meta], "FAILED_VERIFICATION", target_table or "", headers
         
+        target_table_task = None
         if not target_table:
-            target_table = await self._classify_table(
+            target_table_task = asyncio.create_task(self._classify_table(
                 extracted_data, markdown_content, parent_section_text
-            )
+            ))
+            
+        orientation_task = asyncio.create_task(self._classify_orientation(extracted_data, markdown_content))
+        
+        if target_table_task:
+            target_table = await target_table_task
             if not target_table or target_table == "UNKNOWN_TABLE":
                 return [], [extracted_data], "NEEDS_REVIEW", "", headers
                 
-        orientation = await self._classify_orientation(extracted_data, markdown_content)
+        orientation = await orientation_task
         
         columnar_schema, StructuredResponse = self._build_dynamic_schema_model(target_table, orientation)
         sys_prompt = self._build_system_prompt(
@@ -345,7 +351,8 @@ class WaterfallAlignmentStrategy:
         if not merged_rows:
             return [], [], "FAILED", target_table, headers
 
-        return self._cast_and_verify_rows(
+        return await asyncio.to_thread(
+            self._cast_and_verify_rows,
             merged_rows,
             columnar_schema,
             target_table,

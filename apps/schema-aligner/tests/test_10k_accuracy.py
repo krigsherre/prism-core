@@ -4,37 +4,29 @@ from core.doc_router import route_document
 
 def test_unscaled_fields_eps_protection():
     """Verify EPS and Share Counts bypass context scale multipliers (e.g. in millions)."""
-    # Context scale text specifies 'in millions'
     row_context = {"context_scale": "in millions", "_context_scale_multiplier": 1_000_000.0}
 
-    # Revenue should scale by 1,000,000
     rev_scale = scale_from_row(row_context, field_name="total_revenue")
     assert rev_scale == 1_000_000.0
 
-    # Basic EPS must NOT scale by 1,000,000 (must stay 1.0)
     eps_scale = scale_from_row(row_context, field_name="eps_basic")
     assert eps_scale == 1.0
 
-    # Diluted EPS must NOT scale
     diluted_eps_scale = scale_from_row(row_context, field_name="eps_diluted")
     assert diluted_eps_scale == 1.0
 
-    # Basic weighted average shares must NOT scale
     shares_scale = scale_from_row(row_context, field_name="weighted_average_shares_basic")
     assert shares_scale == 1.0
 
 
 def test_parse_financial_number_field_awareness():
     """Verify parse_financial_number leaves EPS decimal numbers uncorrupted."""
-    # EPS value of 6.16 should be parsed as 6.16 even if field name is provided
     eps_val = parse_financial_number("6.16", field_name="eps_basic")
     assert eps_val == 6.16
 
-    # Diluted EPS of $ 12.45
     diluted_val = parse_financial_number("$ 12.45", field_name="eps_diluted")
     assert diluted_val == 12.45
 
-    # Parentheses accounting negative for EPS
     neg_eps = parse_financial_number("(0.85)", field_name="eps_basic")
     assert neg_eps == -0.85
 

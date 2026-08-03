@@ -6,7 +6,6 @@ import structlog
 
 logger = structlog.get_logger(__name__)
 
-# Static exchange rate matrix relative to USD (1 USD = X Currency)
 _FX_RATES_TO_USD: Dict[str, float] = {
     "USD": 1.0,
     "INR": 83.50,
@@ -29,7 +28,6 @@ def get_fx_rate(from_currency: str, to_currency: str) -> float:
     src_rate = _FX_RATES_TO_USD.get(src, 1.0)
     dst_rate = _FX_RATES_TO_USD.get(dst, 1.0)
 
-    # Convert src -> USD -> dst
     cross_rate = dst_rate / src_rate
     return float(cross_rate)
 
