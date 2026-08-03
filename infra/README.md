@@ -12,8 +12,6 @@
   <a href="../README.md">🏠 Root README</a> ·
   <a href="../architecture.md">📐 Architecture</a> ·
   <a href="../decisions.md">🗂 Architecture Decisions</a> ·
-  <a href="decision.md">🔧 Infra ADR</a> ·
-  <a href="../packages/contracts/README.md">📜 Contracts</a>
 </p>
 
 ---

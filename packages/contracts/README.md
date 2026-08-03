@@ -11,9 +11,7 @@
 <p align="center">
   <a href="../../README.md">🏠 Root README</a> ·
   <a href="../../architecture.md">📐 Architecture</a> ·
-  <a href="../../decisions.md">🗂 ADR Index</a> ·
-  <a href="decision.md">📜 Contracts ADR</a> ·
-  <a href="../../infra/README.md">🔧 Infrastructure</a>
+  <a href="../../decisions.md">🗂 ADR</a> ·
 </p>
 
 ---
