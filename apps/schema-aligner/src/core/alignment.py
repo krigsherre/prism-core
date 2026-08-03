@@ -38,6 +38,14 @@ _FINANCIAL_HINTS = (
     "accounts receivable", "ebitda", "shareholders", "retained earnings",
 )
 
+openai_base_url = (
+    os.environ.get("OPENAI_BASE_URL")
+    or os.environ.get("OPENAI_API_BASE")
+    or os.environ.get("VLLM_API_BASE")
+    or "http://vllm-server:8002"
+)
+openai_api_key = os.environ.get("OPENAI_API_KEY") or os.environ.get("VLLM_API_KEY") or "EMPTY"
+
 if LLM_PROVIDER == "anthropic":
     llm_client = instructor.from_anthropic(
         AsyncAnthropic(
@@ -47,8 +55,8 @@ if LLM_PROVIDER == "anthropic":
     )
 else:
     llm_client = AsyncOpenAI(
-        base_url=os.environ.get("VLLM_API_BASE", "http://vllm-server:8002"),
-        api_key=os.environ.get("VLLM_API_KEY", "EMPTY"),
+        base_url=openai_base_url,
+        api_key=openai_api_key,
         http_client=httpx.AsyncClient(limits=httpx.Limits(max_connections=100, max_keepalive_connections=20))
     )
 
@@ -193,6 +201,15 @@ class WaterfallAlignmentStrategy:
         except Exception as e:
             logger.warning("Failed to persist tenant synonym", error=str(e))
 
+    def _has_numeric_matrix(self, markdown_content: str) -> bool:
+        """Check if markdown text contains a true multi-row numeric table matrix."""
+        if not markdown_content:
+            return False
+        import re
+        lines = [line for line in markdown_content.split("\n") if line.strip()]
+        numeric_rows = sum(1 for line in lines if len(re.findall(r"\b\d+[\d,]*\.?\d*\b", line)) >= 1)
+        return numeric_rows >= 2
+
     def _looks_financial(self, markdown_content: str, parent_section_text: str = "") -> bool:
         blob = f"{markdown_content}\n{parent_section_text}".lower()
         return any(h in blob for h in _FINANCIAL_HINTS)
@@ -203,7 +220,7 @@ class WaterfallAlignmentStrategy:
         markdown_content: str,
         parent_section_text: str = "",
     ) -> str:
-        """Route via deterministic doc router first; fall back to LLM structured classify."""
+        """Route via deterministic doc router first; fall back to LLM structured classify only for true financial tables."""
         with tracer.start_as_current_span("vllm_classify_table"):
             registry_keys = list(self.schema_registry.keys())
             blob = f"{parent_section_text}\n{markdown_content}"
@@ -216,10 +233,14 @@ class WaterfallAlignmentStrategy:
                 logger.info("Doc router classified table", schema=routed, score=score)
                 return routed
 
-            if self._looks_financial(markdown_content, parent_section_text):
-                financial_first = [k for k in registry_keys if k in FINANCIAL_SCHEMAS]
-                other = [k for k in registry_keys if k not in FINANCIAL_SCHEMAS]
-                registry_keys = financial_first + other
+            # Strict Guard: If it lacks financial landmarks or numeric matrix structure, it's narrative text — skip LLM alignment & HITL noise
+            if not self._looks_financial(markdown_content, parent_section_text) and not self._has_numeric_matrix(markdown_content):
+                logger.debug("Skipping table alignment for non-financial narrative block")
+                return ""
+
+            financial_first = [k for k in registry_keys if k in FINANCIAL_SCHEMAS]
+            other = [k for k in registry_keys if k not in FINANCIAL_SCHEMAS]
+            registry_keys = financial_first + other
 
             choices = registry_keys + ["UNKNOWN_TABLE"]
             if not choices:
@@ -627,6 +648,33 @@ class WaterfallAlignmentStrategy:
 
         return chunks
 
+    def _unpivot_multi_period_table(self, rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Unpivot comparative multi-year columns (e.g. 2024, 2023, 2022) into temporal rows."""
+        unpivoted = []
+        import re
+        year_pattern = re.compile(r"^(?:fy)?(20\d\d|19\d\d)$", re.IGNORECASE)
+
+        for row in rows:
+            period_cols = {}
+            base_row = {}
+            for k, v in row.items():
+                m = year_pattern.match(str(k).strip())
+                if m:
+                    period_cols[m.group(1)] = v
+                else:
+                    base_row[k] = v
+
+            if period_cols and len(period_cols) > 1:
+                for period_yr, val in period_cols.items():
+                    new_row = dict(base_row)
+                    new_row["context_reporting_period"] = period_yr
+                    new_row["amount"] = val
+                    new_row["is_restatement"] = False
+                    unpivoted.append(new_row)
+            else:
+                unpivoted.append(row)
+        return unpivoted
+
     def _apply_synonym_remap(
         self, tenant_id: str, target_table: str, meta: Dict[str, Any], row_dict: Dict[str, Any]
     ) -> Dict[str, Any]:
@@ -654,12 +702,12 @@ class WaterfallAlignmentStrategy:
                 remaining[raw_key] = raw_val
         return remaining
 
-    def _cast_value(self, value: Any, expected_type: str) -> Any:
+    def _cast_value(self, value: Any, expected_type: str, field_name: Optional[str] = None) -> Any:
         if value is None:
             return None
         expected_type = expected_type.lower()
         if expected_type in ("float", "int"):
-            parsed = parse_financial_number(value)
+            parsed = parse_financial_number(value, field_name=field_name)
             if parsed is None:
                 return None
             return int(parsed) if expected_type == "int" else float(parsed)
@@ -716,7 +764,7 @@ class WaterfallAlignmentStrategy:
             for k, v in raw_dict.items():
                 expected_type = columnar_schema.get(k, "str")
                 if isinstance(expected_type, str):
-                    mapped_dict[k] = self._cast_value(v, expected_type)
+                    mapped_dict[k] = self._cast_value(v, expected_type, field_name=k)
                 else:
                     mapped_dict[k] = v
             row_structure = mapped_dict.pop("_structure", None) or meta.pop("_structure", None) or structure

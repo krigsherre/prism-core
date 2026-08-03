@@ -122,6 +122,7 @@ class RawTableDOMConsumer:
         self._consumer: Optional[AIOKafkaConsumer] = None
         self._producer: Optional[AIOKafkaProducer] = None
         self.semaphore = asyncio.Semaphore(settings.max_concurrent_inferences)
+        self._active_tasks: set[asyncio.Task] = set()
 
     @retry(stop=stop_after_attempt(5), wait=wait_exponential(multiplier=1, min=2, max=10), reraise=True)
     async def _connect_kafka(self) -> None:
@@ -150,22 +151,33 @@ class RawTableDOMConsumer:
         
         try:
             async for msg in self._consumer:
-                await self._handle_message(msg)
-                await self._consumer.commit()
+                task = asyncio.create_task(self._process_msg_async(msg))
+                self._active_tasks.add(task)
+                task.add_done_callback(self._active_tasks.discard)
+            
+            if self._active_tasks:
+                await asyncio.gather(*list(self._active_tasks), return_exceptions=True)
         except asyncio.CancelledError:
             logger.info("RawTableDOMConsumer cancelled")
         finally:
+            if self._active_tasks:
+                await asyncio.gather(*list(self._active_tasks), return_exceptions=True)
             if self._consumer:
                 await self._consumer.stop()
             if self._producer:
                 await self._producer.stop()
 
-    async def _handle_message(self, msg: Any) -> None:
+    async def _process_msg_async(self, msg: Any) -> None:
         async with self.semaphore:
-            headers_dict = {k: v.decode('utf-8') if isinstance(v, bytes) else v for k, v in (msg.headers or [])}
-            ctx = extract(headers_dict)
-            
-            with tracer.start_as_current_span("process_raw_table_dom", context=ctx):
+            await self._handle_message(msg)
+            if self._consumer:
+                await self._consumer.commit()
+
+    async def _handle_message(self, msg: Any) -> None:
+        headers_dict = {k: v.decode('utf-8') if isinstance(v, bytes) else v for k, v in (msg.headers or [])}
+        ctx = extract(headers_dict)
+        
+        with tracer.start_as_current_span("process_raw_table_dom", context=ctx):
                 if not msg.value:
                     return
                 try:

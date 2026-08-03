@@ -45,11 +45,17 @@ def _build_llm_client():
                 ),
             )
         )
-    from openai import AsyncOpenAI
+    openai_base_url = (
+        os.environ.get("OPENAI_BASE_URL")
+        or os.environ.get("OPENAI_API_BASE")
+        or os.environ.get("VLLM_API_BASE")
+        or "http://vllm-server:8002"
+    )
+    openai_api_key = os.environ.get("OPENAI_API_KEY") or os.environ.get("VLLM_API_KEY") or "EMPTY"
 
     return AsyncOpenAI(
-        base_url=os.environ.get("VLLM_API_BASE", "http://vllm-server:8002"),
-        api_key=os.environ.get("VLLM_API_KEY", "EMPTY"),
+        base_url=openai_base_url,
+        api_key=openai_api_key,
         http_client=httpx.AsyncClient(
             limits=httpx.Limits(max_connections=50, max_keepalive_connections=10)
         ),

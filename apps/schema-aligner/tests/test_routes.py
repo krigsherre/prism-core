@@ -12,7 +12,9 @@ def test_healthz():
     assert response.status_code == 200
     assert response.json() == {"status": "ok"}
 
-def test_readyz():
+def test_readyz(mocker):
+    mocker.patch("api.routes.AIOKafkaClient.bootstrap", return_value=None)
+    mocker.patch("api.routes.AIOKafkaClient.close", return_value=None)
     response = client.get("/readyz")
     assert response.status_code == 200
     assert response.json() == {"status": "ready"}

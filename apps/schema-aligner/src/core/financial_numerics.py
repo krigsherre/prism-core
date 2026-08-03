@@ -8,10 +8,18 @@ _SCALE_SUFFIX = {
     "k": 1_000.0,
     "thousand": 1_000.0,
     "thousands": 1_000.0,
+    "lakh": 100_000.0,
+    "lakhs": 100_000.0,
+    "lac": 100_000.0,
+    "lacs": 100_000.0,
     "m": 1_000_000.0,
     "mm": 1_000_000.0,
     "million": 1_000_000.0,
     "millions": 1_000_000.0,
+    "crore": 10_000_000.0,
+    "crores": 10_000_000.0,
+    "cr": 10_000_000.0,
+    "cr.": 10_000_000.0,
     "b": 1_000_000_000.0,
     "bn": 1_000_000_000.0,
     "billion": 1_000_000_000.0,
@@ -33,23 +41,41 @@ _NULLISH = {
 }
 
 
-def parse_scale_multiplier(scale_text: Optional[str]) -> float:
-    """Interpret context_scale footnotes like 'in millions', 'USD thousands'."""
+_UNSCALED_FIELDS = {
+    "eps_basic",
+    "eps_diluted",
+    "weighted_average_shares_basic",
+    "weighted_average_shares_diluted",
+    "tax_rate",
+    "unit_price",
+    "quantity",
+    "duty_rate",
+}
+
+
+def parse_scale_multiplier(scale_text: Optional[str], field_name: Optional[str] = None) -> float:
+    """Interpret context_scale footnotes like 'in millions', 'USD thousands', 'in Crores', '₹ in Lakhs'."""
+    if field_name and str(field_name).strip().lower() in _UNSCALED_FIELDS:
+        return 1.0
     if not scale_text:
         return 1.0
     s = scale_text.strip().lower()
     for key, mult in _SCALE_SUFFIX.items():
         if re.search(rf"\b{re.escape(key)}\b", s):
             return mult
-    if "000" in s and "million" not in s:
+    if "crore" in s or " cr" in s:
+        return 10_000_000.0
+    if "lakh" in s or " lac" in s:
+        return 100_000.0
+    if "000" in s and "million" not in s and "lakh" not in s:
         return 1_000.0
     return 1.0
 
 
-def parse_financial_number(value: Any) -> Optional[float]:
+def parse_financial_number(value: Any, field_name: Optional[str] = None) -> Optional[float]:
     """
     Parse a financial cell into float.
-    Handles accounting negatives, currency symbols, percent, and scale suffixes.
+    Handles accounting negatives, currency symbols, percent, scale suffixes, and Indian 2-digit comma grouping.
     Returns None for blank / dash cells.
     """
     if value is None:
@@ -70,14 +96,15 @@ def parse_financial_number(value: Any) -> Optional[float]:
     if raw.startswith("-") or raw.endswith("-"):
         negative = True
         raw = raw.lstrip("-").rstrip("-").strip()
-    raw = re.sub(r"[$€£¥₹\s]", "", raw)
+    raw = re.sub(r"[$€£¥₹\s]|rs\.?", "", raw, flags=re.IGNORECASE)
     raw = raw.rstrip("%")
 
     scale = 1.0
-    m = re.search(r"(?i)(bn|mm|billion|millions|million|thousand|k|b|m)\s*$", raw)
-    if m:
-        scale = _SCALE_SUFFIX.get(m.group(1).lower(), 1.0)
-        raw = raw[: m.start()].strip()
+    if not (field_name and str(field_name).strip().lower() in _UNSCALED_FIELDS):
+        m = re.search(r"(?i)(bn|mm|billion|millions|million|crores?|cr\.?|lakhs?|lacs?|thousand|k|b|m)\s*$", raw)
+        if m:
+            scale = _SCALE_SUFFIX.get(m.group(1).lower(), 1.0)
+            raw = raw[: m.start()].strip()
     if "," in raw and "." in raw:
         if raw.rfind(",") > raw.rfind("."):
             raw = raw.replace(".", "").replace(",", ".")
@@ -102,14 +129,16 @@ def parse_financial_number(value: Any) -> Optional[float]:
     return -num if negative else num
 
 
-def scale_from_row(data: dict) -> float:
+def scale_from_row(data: dict, field_name: Optional[str] = None) -> float:
     """Read context scale multiplier from row (_context_scale_multiplier or context_scale)."""
     if not data:
+        return 1.0
+    if field_name and str(field_name).strip().lower() in _UNSCALED_FIELDS:
         return 1.0
     explicit = data.get("_context_scale_multiplier")
     if isinstance(explicit, (int, float)) and explicit > 0:
         return float(explicit)
-    return parse_scale_multiplier(data.get("context_scale"))
+    return parse_scale_multiplier(data.get("context_scale"), field_name=field_name)
 
 
 def effective_tolerance(

@@ -3,23 +3,32 @@
   "schemas": [
     "standardized_balance_sheet",
     "standardized_income_statement",
-    "standardized_cash_flow"
+    "standardized_cash_flow",
+    "sec_10k_footnote_schedule"
   ],
   "grounding_fields": {
     "standardized_balance_sheet": [
       "total_assets",
       "total_liabilities",
       "total_shareholders_equity",
-      "cash_and_equivalents"
+      "cash_and_equivalents",
+      "total_current_assets",
+      "total_current_liabilities"
     ],
     "standardized_income_statement": [
       "total_revenue",
       "gross_profit",
+      "operating_income",
       "net_income"
     ],
     "standardized_cash_flow": [
       "net_cash_from_operating_activities",
+      "net_cash_from_investing_activities",
+      "net_cash_from_financing_activities",
       "net_change_in_cash"
+    ],
+    "sec_10k_footnote_schedule": [
+      "amount"
     ]
   },
   "rules": {
@@ -90,6 +99,7 @@
         ],
         "op": "add"
       }
-    ]
+    ],
+    "sec_10k_footnote_schedule": []
   }
 }

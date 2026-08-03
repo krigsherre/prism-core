@@ -11,6 +11,7 @@ _RULES: List[Tuple[str, float, Tuple[str, ...]]] = [
         (
             r"balance\s*sheet",
             r"statement of financial position",
+            r"consolidated\s+balance\s+sheets?",
             r"total\s+assets",
             r"shareholders[\'’]?\s+equity",
             r"liabilities\s+and\s+equity",
@@ -24,8 +25,9 @@ _RULES: List[Tuple[str, float, Tuple[str, ...]]] = [
             r"profit\s+and\s+loss",
             r"\bp\s*&\s*l\b",
             r"statement of operations",
+            r"consolidated\s+statements?\s+of\s+(operations|income|earnings)",
             r"net\s+income",
-            r"cost of (goods|sales)",
+            r"cost of (goods|sales|revenue)",
             r"\bebitda\b",
         ),
     ),
@@ -34,10 +36,22 @@ _RULES: List[Tuple[str, float, Tuple[str, ...]]] = [
         1.0,
         (
             r"cash\s+flow",
+            r"consolidated\s+statements?\s+of\s+cash\s+flows?",
             r"operating activities",
             r"investing activities",
             r"financing activities",
             r"net change in cash",
+        ),
+    ),
+    (
+        "sec_10k_footnote_schedule",
+        0.85,
+        (
+            r"note\s+\d+",
+            r"segment\s+reporting",
+            r"disaggregated\s+revenue",
+            r"lease\s+commitments?",
+            r"debt\s+maturities",
         ),
     ),
     (
@@ -119,3 +133,67 @@ def route_document(
     if len(ranked) > 1 and ranked[0] < ranked[1] + 0.75:
         return "", best_score, scores
     return best_schema, best_score, scores
+
+
+def detect_jurisdiction(text: str) -> str:
+    """Detect whether a document is an Indian Annual Report (IND) vs SEC 10-K (US) vs Global."""
+    blob = (text or "").lower()
+    if not blob.strip():
+        return "GLOBAL"
+
+    indian_patterns = [
+        r"companies\s+act",
+        r"ind\s+as",
+        r"schedule\s+iii",
+        r"sebi",
+        r"bse\s+limited",
+        r"national\s+stock\s+exchange",
+        r"\bcin\b",
+        r"crores?",
+        r"lakhs?",
+        r"₹",
+        r"rs\.",
+        r"standalone\s+financial",
+    ]
+    us_patterns = [
+        r"form\s+10-?k",
+        r"securities\s+and\s+exchange\s+commission",
+        r"commission\s+file\s+number",
+        r"us-gaap",
+        r"item\s+8\.",
+    ]
+
+    indian_score = sum(1.0 for pat in indian_patterns if re.search(pat, blob, re.IGNORECASE))
+    us_score = sum(1.0 for pat in us_patterns if re.search(pat, blob, re.IGNORECASE))
+
+    if indian_score > us_score and indian_score >= 1.0:
+        return "IND"
+    elif us_score > indian_score and us_score >= 1.0:
+        return "US"
+    return "GLOBAL"
+
+
+def extract_entity_identifiers(text: str) -> Dict[str, Optional[str]]:
+    """
+    Extract regulatory entity identifiers:
+    - CIN (Indian Corporate Identity Number: L17110MH1973PLC019786)
+    - CIK (US SEC Central Index Key: 0000320193)
+    - Ticker (US stock ticker: AAPL)
+    - NSE Symbol (Indian stock exchange symbol: RELIANCE)
+    """
+    if not text:
+        return {"cin": None, "cik": None, "ticker": None, "nse_symbol": None}
+
+    cin_m = re.search(r"\b([LU]\d{5}[A-Z]{2}\d{4}PLC\d{6})\b", text, re.IGNORECASE)
+    cik_m = re.search(r"\bCIK[:\s]*(\d{6,10})\b", text, re.IGNORECASE)
+    ticker_m = re.search(r"\bTicker[:\s]*([A-Z]{1,5})\b", text)
+    nse_m = re.search(r"\bNSE[:\s]*([A-Z0-9_-]{2,15})\b", text, re.IGNORECASE)
+
+    return {
+        "cin": cin_m.group(1).upper() if cin_m else None,
+        "cik": cik_m.group(1) if cik_m else None,
+        "ticker": ticker_m.group(1).upper() if ticker_m else None,
+        "nse_symbol": nse_m.group(1).upper() if nse_m else None,
+    }
+
+
