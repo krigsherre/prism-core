@@ -1,63 +1,97 @@
-# Storage Sync
+<p align="center">
+  <img src="../../apps/web-dashboard/app/icon.png" alt="Prism Core" width="64" />
+</p>
 
-Kafka worker that bifurcates extracted DOMs, upserts aligned rows into Postgres, dual-routes embeddings to Qdrant, and keeps vectors/views consistent via CDC. Design rationale lives in [`decision.md`](./decision.md).
+<h1 align="center">Storage Sync</h1>
 
-## Prerequisites
+<p align="center">
+  <strong>Data synchronization & vector/graph ingestion worker — DOM bifurcation, Postgres JSONB upserts, Qdrant vector embedding, and Neo4j UNWIND batching.</strong>
+</p>
 
-- Python 3.10–3.12
-- Poetry
-- Kafka, Postgres, Qdrant (+ optional embeddings server); see root `docker-compose` / `.env.example`
+<p align="center">
+  <a href="../../README.md">🏠 Root README</a> ·
+  <a href="../../architecture.md">📐 Architecture</a> ·
+  <a href="../../decisions.md">🗂 Decisions</a>
+</p>
 
-## Setup
+---
+
+## ⚡ Overview
+
+`storage-sync` is the multi-store persistence and bifurcation engine of Prism Core. It consumes aligned rows (`mapped_table_rows`) and raw DOM nodes (`document_dom_nodes`), performing:
+
+1. **Relational Upserts**: Idempotent Postgres upserts on composite key `(document_id, node_id, row_index)` into `extracted_tables`.
+2. **Dense Vector Ingestion**: Precomputes batch embeddings via TEI (`:8085`) and writes prose chunks directly to Qdrant.
+3. **Graph Triple Batching**: Pre-filters financial entity nodes and executes single-transaction `UNWIND` Cypher batches into Neo4j.
+4. **CDC Consistency**: Monitored Postgres changes update BI views and vector indices asynchronously.
+
+---
+
+## 🏗 Storage Pipeline
+
+```mermaid
+flowchart TD
+    K1[Kafka: mapped_table_rows & DOM nodes] --> Sync[storage-sync Worker]
+    Sync --> Bifurcate{Node Bifurcation}
+    
+    Bifurcate -->|Aligned Table Row| PG[(Postgres: extracted_tables\nON CONFLICT Composite Key)]
+    Bifurcate -->|Text / Prose Chunk| TEI[HuggingFace TEI :8085]
+    Bifurcate -->|Financial Entity Node| GraphFilter[Entity Filter]
+    
+    TEI --> Qdrant[(Qdrant Vector DB)]
+    GraphFilter -->|Matched| Neo4j[(Neo4j Graph DB\nUNWIND Batches)]
+```
+
+---
+
+## 🛠 Prerequisites & Setup
+
+- **Python**: `3.10 – 3.12`
+- **Package Manager**: Poetry
+- **Services**: Postgres, Kafka, Qdrant, Neo4j, TEI embeddings sidecar (`:8085`)
 
 ```bash
+# Install dependencies
 poetry install
-```
 
-## Run
-
-```bash
+# Run worker process
 PYTHONPATH=src poetry run python -m main
-```
 
-Migrations:
-
-```bash
+# Execute database migrations
 poetry run alembic upgrade head
-```
 
-## Tests
-
-```bash
+# Run unit tests
 poetry run pytest
 ```
 
-## Layout
+---
+
+## 📁 Repository Structure
 
 ```text
 src/
-  main.py                 # process entry: init DB/Qdrant, gather consumers
-  config/                 # settings
-  db/                     # models, async engine, view codegen
-  repositories/           # Postgres upserts, Qdrant vectors
+  main.py                 # Worker process entrypoint & consumer coordinator
+  config/                 # Settings & environment configuration
+  db/                     # SQLAlchemy async engine, models, and BI view codegen
+  repositories/           # Postgres upsert repositories & Qdrant vector client
   kafka/
-    consumers/            # bifurcation, aligned, status, DLQ, HITL, auto-promote
-    cdc/                  # extracted_tables event observer → Qdrant
+    consumers/            # Bifurcation, status updates, DLQ, and HITL consumers
+    cdc/                  # Postgres extracted_tables event observer -> Qdrant CDC sync
   proto -> packages/contracts/gen/python/proto
-alembic/                  # schema migrations
-tests/
+alembic/                  # Database migration scripts
+tests/                    # Test suite
 ```
 
-## Env
+---
 
-| Variable | Required | Default | Description |
-|---|---|---|---|
-| `KAFKA_BROKER` | no | `localhost:9092` | Kafka bootstrap |
-| `DATABASE_URL` | no | built from `POSTGRES_*` | Async Postgres URL (`postgresql+asyncpg://…`) |
-| `POSTGRES_USER` / `PASSWORD` / `DB` / `HOST` / `PORT` | no | `postgres` / `postgres` / `prism` / `localhost` / `5432` | Used when `DATABASE_URL` is empty or still has `${…}` |
-| `QDRANT_URL` | no | `http://localhost:6333` | Qdrant HTTP |
-| `QDRANT_API_KEY` | no | `test-qdrant-key-12345` | Optional; ignored for the local test key |
-| `QDRANT_COLLECTION_NAME` | no | `document_chunks` | Vector collection |
-| `CDC_MAX_CONCURRENT_INFERENCES` | no | `5` | CDC observer concurrency cap |
-| `CHUNK_ASSEMBLE_TIMEOUT_SECONDS` | no | `900` | DOM chunk assemble timeout |
-| `SCHEMA_REGISTRY_PATH` | no | sibling / image path | `registry.json` for BI view codegen |
+## ⚙️ Environment Variables
+
+| Variable | Default | Description |
+|---|---|---|
+| `KAFKA_BROKER` | `localhost:9092` | Kafka bootstrap brokers |
+| `DATABASE_URL` | `postgresql+asyncpg://…` | Async Postgres connection DSN |
+| `QDRANT_URL` | `http://localhost:6333` | Qdrant HTTP service endpoint |
+| `QDRANT_COLLECTION_NAME` | `document_chunks` | Qdrant collection name |
+| `CDC_MAX_CONCURRENT_INFERENCES` | `5` | Maximum concurrent CDC batch inferences |
+| `CHUNK_ASSEMBLE_TIMEOUT_SECONDS` | `900` | DOM chunk assembly timeout in seconds |
+| `SCHEMA_REGISTRY_PATH` | _(auto)_ | Path to `registry.json` for BI view codegen |

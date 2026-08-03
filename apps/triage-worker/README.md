@@ -1,56 +1,88 @@
-# Triage Worker
+<p align="center">
+  <img src="../../apps/web-dashboard/app/icon.png" alt="Prism Core" width="64" />
+</p>
 
-Kafka worker that dedupes ingest events (exact hash + version-update chain), routes new work to `gpu_processing_queue`, and escalates poison pills to DLQ after Redis-backed retries. Design rationale lives in [`decision.md`](./decision.md).
+<h1 align="center">Triage Worker</h1>
 
-## Prerequisites
+<p align="center">
+  <strong>High-concurrency Go worker — exact-hash deduplication, version routing, and retry DLQ management.</strong>
+</p>
 
-- Go 1.25+
-- Kafka + Redis (see root `docker-compose` / `.env.example`)
-- Generated Go contracts under `packages/contracts/gen/go` (module replace)
+<p align="center">
+  <a href="../../README.md">🏠 Root README</a> ·
+  <a href="../../architecture.md">📐 Architecture</a> ·
+  <a href="../../decisions.md">🗂 Decisions</a>
+</p>
 
-## Setup
+---
+
+## ⚡ Overview
+
+`triage-worker` is a high-throughput Go service that sits directly behind the `doc_ingest_events` Kafka topic. It inspects incoming document events using a Redis-backed chain-of-responsibility pattern:
+
+1. **Exact-Hash Deduplication**: Computes exact SHA-256 hash checks via Redis to drop duplicate uploads instantly.
+2. **Version Update Path**: If `is_version_update` is flagged, updates document version pointer while passing work downstream.
+3. **Queue Dispatch & Poison Pill Escalation**: Routes valid work to `gpu_processing_queue` or escalates to `doc_dlq` after `APP_MAXRETRIES` attempts.
+
+---
+
+## 🏗 Processing Pipeline
+
+```mermaid
+flowchart TD
+    K1[Kafka: doc_ingest_events] --> Worker[triage-worker Pool]
+    Worker --> HashCheck{Redis SHA-256 Hash Exists?}
+    HashCheck -->|Yes & Not Version Update| Drop[Drop Duplicate + Send S3 Cleanup]
+    HashCheck -->|No OR Version Update| QueuePass[Dispatch to GPU Queue]
+    QueuePass --> K2[Kafka: gpu_processing_queue]
+    Worker -->|Exceeded Retries| DLQ[Kafka: doc_dlq]
+```
+
+---
+
+## 🛠 Prerequisites & Setup
+
+- **Go**: `1.25+`
+- **Services**: Kafka + Redis
 
 ```bash
+# Install dependencies
 go mod download
-```
 
-## Run
-
-```bash
+# Run worker
 go run ./cmd/worker
-```
 
-## Tests
-
-```bash
+# Run unit tests
 go test -cover ./...
 ```
 
-## Layout
+---
+
+## 📁 Repository Structure
 
 ```text
-cmd/worker/                 # entrypoint + graceful shutdown
+cmd/worker/                 # Entrypoint & signal handling
 internal/
-  app/                      # worker pool + message lifecycle
-    pipeline/               # exact-hash → version-update chain
-    routing/                # GPU topic publish strategy
-  config/                   # viper / env
+  app/                      # Worker pool & message lifecycle coordinator
+    pipeline/               # Exact-hash dedup & version update evaluation
+    routing/                # Kafka topic publication strategy
+  config/                   # Environment & Viper configuration
   infrastructure/
-    kafka/                  # consumer + producers
-    redis/                  # dedupe + fail-count cache
+    kafka/                  # Consumer group & producer implementations
+    redis/                  # Hash cache & failure counter client
 ```
 
-## Env
+---
+
+## ⚙️ Environment Variables
 
 | Variable | Default | Description |
 |---|---|---|
-| `KAFKA_BROKER` | `localhost:9092` | Kafka bootstrap |
-| `KAFKA_CONSUMERGROUP` | `triage-worker-group` | Consumer group |
-| `KAFKA_INGESTTOPIC` | `doc_ingest_events` | Ingest protobuf topic |
-| `KAFKA_DLQTOPIC` | `doc_dlq` | Dead-letter topic |
-| `KAFKA_GPUTOPIC` | `gpu_processing_queue` | GPU extractor topic |
-| `REDIS_ADDR` | `localhost:6379` | Dedup + retry counters |
-| `APP_CONCURRENCY` | `100` | In-flight goroutine cap |
-| `APP_MAXRETRIES` | `3` | Failures before DLQ |
-
-Also publishes to fixed topics `document_status_events` and `s3_cleanup_tasks` (duplicate drops).
+| `KAFKA_BROKER` | `localhost:9092` | Kafka bootstrap brokers |
+| `KAFKA_CONSUMERGROUP` | `triage-worker-group` | Kafka consumer group name |
+| `KAFKA_INGESTTOPIC` | `doc_ingest_events` | Source topic for incoming ingest events |
+| `KAFKA_GPUTOPIC` | `gpu_processing_queue` | Target topic for validated extraction work |
+| `KAFKA_DLQTOPIC` | `doc_dlq` | Dead-letter topic for poison pill events |
+| `REDIS_ADDR` | `localhost:6379` | Redis host & port for deduplication cache |
+| `APP_CONCURRENCY` | `100` | In-flight goroutine processing concurrency cap |
+| `APP_MAXRETRIES` | `3` | Maximum failure attempts before DLQ escalation |
