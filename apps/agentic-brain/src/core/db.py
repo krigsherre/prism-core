@@ -13,29 +13,36 @@ class AsyncPostgresClient:
         if cls._instance is None:
             cls._instance = super(AsyncPostgresClient, cls).__new__(cls)
             cls._instance.pool = None
+            cls._instance._lock = None
         return cls._instance
 
     async def connect(self):
         if not self.pool:
-            try:
-                self.pool = await asyncpg.create_pool(
-                    settings.database_url,
-                    min_size=1,
-                    max_size=settings.db_pool_size
-                )
-                
-                self.listener_conn = await self.pool.acquire()
-                
-                def handle_notification(connection, pid, channel, payload):
-                    import asyncio
-                    asyncio.create_task(status_broadcaster.broadcast(payload))
-                    
-                await self.listener_conn.add_listener('document_status_updates', handle_notification)
-                
-                logger.info("Connected to Postgres via asyncpg pool and listening for document_status_updates")
-            except Exception as e:
-                logger.error("Failed to connect to Postgres", error=str(e))
-                raise
+            if getattr(self, '_lock', None) is None:
+                import asyncio
+                self._lock = asyncio.Lock()
+            async with self._lock:
+                if not self.pool:
+                    try:
+                        self.pool = await asyncpg.create_pool(
+                            settings.database_url,
+                            min_size=1,
+                            max_size=settings.db_pool_size
+                        )
+                        
+                        # Dedicated connection for LISTEN outside of query pool
+                        self.listener_conn = await asyncpg.connect(settings.database_url)
+                        
+                        def handle_notification(connection, pid, channel, payload):
+                            import asyncio
+                            asyncio.create_task(status_broadcaster.broadcast(payload))
+                            
+                        await self.listener_conn.add_listener('document_status_updates', handle_notification)
+                        
+                        logger.info("Connected to Postgres via asyncpg pool and listening for document_status_updates")
+                    except Exception as e:
+                        logger.error("Failed to connect to Postgres", error=str(e))
+                        raise
 
     async def fetch_jsonb(self, document_id: str) -> dict:
         """Fetch raw JSONB extracted data from Postgres."""
@@ -67,7 +74,7 @@ class AsyncPostgresClient:
         
         query = """
             UPDATE extracted_tables 
-            SET strict_columns = $1, 
+            SET strict_columns = $1::jsonb, 
                 mapping_status = 'MAPPED',
                 updated_at = NOW()
             WHERE document_id = $2
@@ -78,9 +85,14 @@ class AsyncPostgresClient:
 
     async def close(self):
         if hasattr(self, 'listener_conn') and self.listener_conn:
-            await self.pool.release(self.listener_conn)
+            try:
+                await self.listener_conn.close()
+            except Exception:
+                pass
+            self.listener_conn = None
         if self.pool:
             await self.pool.close()
+            self.pool = None
 
     async def insert_chat_audit_log(self, audit_data: dict) -> None:
         """Insert a chat audit log record into Postgres."""
