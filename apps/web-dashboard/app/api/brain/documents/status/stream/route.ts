@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 300; // Allow long running requests if deployed on Vercel/etc
+export const maxDuration = 300
 
 export async function GET(req: NextRequest) {
   const url = new URL(req.url);
@@ -16,7 +16,6 @@ export async function GET(req: NextRequest) {
         "Accept": "text/event-stream",
         "Cache-Control": "no-cache",
       },
-      // Important to prevent fetch caching
       cache: "no-store",
     });
 

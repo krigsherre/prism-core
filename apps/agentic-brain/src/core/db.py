@@ -30,7 +30,6 @@ class AsyncPostgresClient:
                             max_size=settings.db_pool_size
                         )
                         
-                        # Dedicated connection for LISTEN outside of query pool
                         self.listener_conn = await asyncpg.connect(settings.database_url)
                         
                         def handle_notification(connection, pid, channel, payload):

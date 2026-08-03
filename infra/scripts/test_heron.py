@@ -15,7 +15,6 @@ inputs = processor(images=img, return_tensors="pt").to(device)
 with torch.no_grad():
     outputs = model(**inputs)
 
-# Test post processing
 target_sizes = [(img.height, img.width)]
 try:
     processor.post_process_object_detection(outputs, target_sizes=target_sizes, threshold=0.3)
@@ -23,7 +22,6 @@ try:
 except Exception as e:
     print(f"Failed without cast: {e}")
 
-# Test with explicit cast
 outputs.logits = outputs.logits.cpu()
 outputs.pred_boxes = outputs.pred_boxes.cpu()
 

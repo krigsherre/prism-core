@@ -46,7 +46,6 @@ def inject_tenant_id_sql(sql: str, tenant_id: str) -> str:
     try:
         parsed = sqlglot.parse_one(sql)
         condition = f"tenant_id = '{tenant_id}'"
-        # Transform all Select nodes in the expression tree
         for select in parsed.find_all(exp.Select):
             select.where(condition, copy=False)
         return parsed.sql()

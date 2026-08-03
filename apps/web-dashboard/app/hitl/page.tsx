@@ -6,19 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useAppStore } from "@/store/useAppStore"
 import { DocumentViewer } from "@/components/DocumentViewer"
-
-function getHitlReview(req: HitlRequest) {
-  return req.payload?.hitl_review || req.payload?.payload?.hitl_review || null
-}
-
-function defaultEditablePayload(req: HitlRequest): string {
-  const review = getHitlReview(req)
-  const proposed = review?.proposed_extracted_data
-  if (proposed && Object.keys(proposed).length > 0) {
-    return JSON.stringify(proposed, null, 2)
-  }
-  return JSON.stringify(req.payload?.extracted_data || req.payload, null, 2)
-}
+import { defaultEditablePayload, getHitlReview } from "./utils/utils"
 
 export default function HITLPage() {
   const { requests, isLoading, resolve, discard, approveGeneric, divertRag, isResolving, isDiscarding, isApprovingGeneric, isDivertingRag } = useHitl()

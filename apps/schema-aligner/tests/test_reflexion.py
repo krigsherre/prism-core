@@ -1,6 +1,6 @@
 """Tests for Reflexion classification and repair ladder."""
 import pytest
-from unittest.mock import  patch
+from unittest.mock import patch
 
 from core.reflexion import (
     FailureClass,

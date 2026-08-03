@@ -1,4 +1,3 @@
-"""Tests for domain packs, cross-entity critics, confidence, and doc router."""
 from core.confidence import compute_confidence, PromotionBand, band_to_status
 from core.cross_entity import (
     verify_bank_header_vs_transactions,

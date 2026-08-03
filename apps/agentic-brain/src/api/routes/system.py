@@ -105,7 +105,6 @@ async def resolve_hitl_request(payload: HitlResolveRequest):
                     field_name=payload.field_name,
                 )
             except Exception as e:
-                # Table may not be migrated yet — still resolve the document
                 import structlog
                 structlog.get_logger(__name__).warning("Failed to persist correction", error=str(e))
                 correction = {"synonym_mappings": [], "id": None, "field_patches": []}

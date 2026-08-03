@@ -18,7 +18,6 @@ async def test_trimodal_ingestion_and_chat_routing():
     Simulates data ingestion across PostgreSQL, Qdrant, and Neo4j,
     then verifies Supervisor routing and multi-agent Chat node execution.
     """
-    # 1. Verify SQL Modality Mapping Priority Logic
     mock_extracted_rows = [
         {
             "id": "row-001",
@@ -42,7 +41,6 @@ async def test_trimodal_ingestion_and_chat_routing():
     assert selected[0]["company_name"] == "Acme Corp"
     assert selected[0]["total_assets"] == 5000000
 
-    # 2. Verify Supervisor Intent Classification Routing
     mock_supervisor_out = IntentClassification(
         intents=["SQL", "VECTOR", "CYPHER"],
         reasoning="Query asks for tabular financial metrics, semantic disclosures, and auditor relationships."
@@ -68,7 +66,6 @@ async def test_trimodal_ingestion_and_chat_routing():
         routes = supervisor_router(state)
         assert set(routes) == {"generate_sql", "generate_vector", "generate_cypher"}
 
-    # 3. Test SQL Agent Node Execution
     mock_sql_plan = SQLPlanOutput(
         mode="exact",
         view_name="view_standardized_balance_sheet",
@@ -99,7 +96,6 @@ async def test_trimodal_ingestion_and_chat_routing():
         assert "5000000" in exec_sql_res["sql_result"]
         assert len(exec_sql_res["references"]) >= 1
 
-    # 4. Test Vector Agent Node Execution
     mock_vector_plan = VectorQueryOutput(search_query="Acme Corp 2025 SEC 10-K audit disclosure")
     mock_qdrant_response = json.dumps([
         {
@@ -126,7 +122,6 @@ async def test_trimodal_ingestion_and_chat_routing():
         assert len(exec_vec_res["references"]) == 1
         assert exec_vec_res["references"][0]["source_page"] == 12
 
-    # 5. Test Cypher Graph Agent Node Execution
     mock_cypher_plan = CypherTemplateSelection(template_name="FIND_AUDITORS", entity_name="Acme Corp", reasoning="Find auditor")
     mock_graph_ans = MagicMock(content="Acme Corp is audited by Deloitte.")
 

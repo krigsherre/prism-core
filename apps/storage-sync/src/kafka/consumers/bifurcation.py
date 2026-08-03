@@ -70,7 +70,6 @@ class DocumentRouter:
     def _get_embedding(self, node: dom_pb2.Node, precomputed: dict) -> list:
         if precomputed and node.id in precomputed:
             return precomputed[node.id]
-        # Use a non-zero dummy vector to prevent Qdrant Cosine/BinaryQuantization division-by-zero crashes
         return [1e-5] * 384
 
     _OTSL_MARKERS = ("<fcel>", "<nl>", "<ecel>", "<lcel>", "<ucel>")
@@ -124,7 +123,6 @@ class DocumentRouter:
         lines = [l.strip() for l in content.strip().split("\n") if l.strip()]
         if len(lines) < 1:
             return False
-        # Single giant line with '=' is almost never KV (e.g. exchange rates inside table text)
         if len(lines) == 1 and ("=" in lines[0] or len(lines[0]) > 200):
             return False
         kvish = 0
@@ -137,7 +135,6 @@ class DocumentRouter:
         if not content:
             return {}
 
-        # 1. JSON: prefer headers/rows, then columnar dict-of-arrays
         try:
             parsed = json.loads(content)
             if isinstance(parsed, dict):
@@ -148,14 +145,12 @@ class DocumentRouter:
                     if isinstance(parsed.get("_structure"), dict):
                         columnar["_structure"] = parsed["_structure"]
                     return columnar
-                # Columnar dict-of-arrays (ignore underscore meta keys for the all-list check)
                 data_keys = {k: v for k, v in parsed.items() if not str(k).startswith("_")}
                 if data_keys and all(isinstance(v, list) for v in data_keys.values()):
                     out = dict(data_keys)
                     if isinstance(parsed.get("_structure"), dict):
                         out["_structure"] = parsed["_structure"]
                     return out
-                # Brittle single-key OTSL wrapped as JSON
                 if self._is_otsl(content) or any(
                     self._is_otsl(str(k)) or self._is_otsl(str(v)) for k, v in parsed.items()
                 ):
@@ -165,13 +160,11 @@ class DocumentRouter:
                         if isinstance(v, str):
                             parts.append(v)
                     return self._parse_otsl("".join(parts))
-                # Flat dict of scalars — leave as-is for KV-like JSON
                 if parsed and all(not isinstance(v, (list, dict)) for v in parsed.values()):
                     return parsed
         except (json.JSONDecodeError, TypeError):
             pass
 
-        # 2. OTSL before any KV fallback
         if self._is_otsl(content):
             return self._parse_otsl(content)
 
@@ -179,7 +172,6 @@ class DocumentRouter:
         if not lines:
             return {}
 
-        # 3. Markdown pipe tables
         result = {}
         header_idx = -1
         for i, line in enumerate(lines):
@@ -234,7 +226,6 @@ class DocumentRouter:
             if result and any(any(str(v).strip() for v in arr) for arr in result.values()):
                 return result
 
-        # 4. KV only when content looks like Key: Value lines
         if self._looks_like_kv_lines(content):
             kv_res = self._parse_kv_content(content)
             if kv_res and any(v != "" for v in kv_res.values()):
@@ -255,7 +246,6 @@ class DocumentRouter:
                 result[k.strip()] = v.strip()
             elif line.count("=") == 1 and len(line) < 200:
                 k, v = line.split("=", 1)
-                # Skip currency-rate style values (digit/currency on left of =)
                 if k.strip() and not any(ch.isdigit() for ch in k.strip()[:3]):
                     result[k.strip()] = v.strip()
         return result
@@ -268,7 +258,6 @@ class DocumentRouter:
         if not keys:
             return ""
 
-        # Flat scalar dict → single row
         if all(not isinstance(data[k], list) for k in keys):
             md = "| " + " | ".join(keys) + " |\n"
             md += "|" + "|".join(["---" for _ in keys]) + "|\n"
@@ -308,7 +297,6 @@ class DocumentRouter:
             return False
         if ha == hb:
             return True
-        # Continuation page sometimes drops/renames one trailing totals column
         overlap = ha & hb
         return len(overlap) >= max(2, int(0.8 * min(len(ha), len(hb))))
 
@@ -321,7 +309,6 @@ class DocumentRouter:
         p1 = self._page_number(prev)
         p2 = self._page_number(curr)
         if p1 <= 0 or p2 <= 0:
-            # Missing provenance — allow header-compatible merge only
             return True
         return p2 in (p1, p1 + 1)
 
@@ -344,7 +331,6 @@ class DocumentRouter:
     def _merge_columnar_tables(self, buf: dict, curr: dict) -> dict:
         """Append curr rows onto buf; align columns to buf header order."""
         merged = {k: list(v) if isinstance(v, list) else [v] for k, v in buf.items()}
-        # Map normalized curr keys → original buf keys
         buf_by_norm = {self._normalize_header_key(k): k for k in merged.keys()}
         curr_len = 0
         for v in curr.values():
@@ -354,7 +340,6 @@ class DocumentRouter:
                 curr_len = max(curr_len, 1)
 
         for norm, buf_key in buf_by_norm.items():
-            # find matching curr column
             match_val = None
             for ck, cv in curr.items():
                 if self._normalize_header_key(ck) == norm:
@@ -393,7 +378,6 @@ class DocumentRouter:
         curr_parsed = self._parse_table_content(curr.content)
         if not buf_parsed or not curr_parsed:
             return False
-        # Scalar KV-style tables: do not row-stitch
         if all(not isinstance(v, list) for v in buf_parsed.values()):
             return False
         if all(not isinstance(v, list) for v in curr_parsed.values()):
@@ -433,9 +417,7 @@ class DocumentRouter:
                     buf_parsed = self._parse_table_content(table_buffer.content)
                     curr_parsed = self._parse_table_content(node.content)
                     merged = self._merge_columnar_tables(buf_parsed, curr_parsed)
-                    # Prefer canonical headers/rows JSON for the aligner
                     table_buffer.content = self._columnar_to_headers_rows_json(merged)
-                    # Drop weak separators that sat between continued halves
                     pending_weak = []
                     logger.info(
                         "Cross-chunk/page table stitch",
@@ -544,7 +526,6 @@ class DocumentRouter:
 
     async def _route_table(self, tenant_id, document_id, node, producer, prov, full_context, parent_text, user_id, metrics, precomputed_embeddings, point_batch=None):
         extracted = self._parse_table_content(node.content)
-        # Prefer rendered markdown from structured data so aligner chunking is reliable
         markdown = self._dict_to_markdown_table(extracted) if extracted else (node.content or "")
         payload = {
             "tenant_id": tenant_id, "document_id": document_id, "node_id": node.id,
@@ -563,7 +544,6 @@ class DocumentRouter:
             except Exception as e:
                 logger.error("Failed to send table to Kafka, skipping", error=str(e), node_id=node.id)
 
-        # Offload secondary graph task routing and Qdrant vector upserts to async background tasks
         async def _async_secondary_tasks():
             if producer:
                 text_for_graph = f"{full_context}\n{markdown}"
@@ -846,7 +826,6 @@ class BifurcationConsumer:
             "company_name": None, "ticker": None, "fiscal_period": None
         }
         
-        # Extract metadata from the first few pages of text
         extracted_text_chunks = []
         char_count = 0
         for n in dom.nodes:

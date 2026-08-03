@@ -37,7 +37,6 @@ SYSTEM_COLUMNS = [
     "mapping_status",
 ]
 
-# Prefer human/auto-verified rows; fall back so chat still answers during HITL backlog.
 _TRUST_VERIFIED = "verified"
 _TRUST_PROVISIONAL = "provisional"
 _TRUST_UNVERIFIED = "unverified"
@@ -333,7 +332,6 @@ async def _fetch_rows(
                 document_id
             )
             avail_tables = [r["target_table"] for r in avail]
-            # Prioritize core financial statements (balance sheet, income statement, cash flow)
             core_order = ["standardized_balance_sheet", "standardized_income_statement", "standardized_cash_flow", "vendor_invoice_headers"]
             avail_tables.sort(key=lambda t: core_order.index(t) if t in core_order else 99)
         finally:
@@ -422,7 +420,6 @@ def _clean_rows(rows: List[Any]) -> List[Dict[str, Any]]:
             elif isinstance(v, memoryview):
                 item[k] = bytes(v).decode("utf-8", errors="replace")
         
-        # Unpack unmapped_jsonb fields if present
         unmapped = item.get("unmapped_jsonb")
         if isinstance(unmapped, dict):
             for uk, uv in unmapped.items():
@@ -435,7 +432,6 @@ def _clean_rows(rows: List[Any]) -> List[Dict[str, Any]]:
                         if item.get(uk) is None and uv is not None and uv != "":
                             item[uk] = uv
 
-        # Fallback: Extract numbers from raw source_text or unmapped_jsonb blob if key fields are null
         extracted_nums = _extract_numbers_from_blob(unmapped) or _extract_numbers_from_blob(item.get("source_text"))
         for ek, ev in extracted_nums.items():
             if item.get(ek) is None:

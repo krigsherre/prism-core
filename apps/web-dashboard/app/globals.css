@@ -6,7 +6,6 @@
 
 @layer base {
   :root {
-    /* shadcn compat vars */
     --card: 0 0% 100%;
     --card-foreground: 222 47% 11%;
     --popover: 0 0% 100%;
@@ -39,7 +38,6 @@
   }
 }
 
-/* ─── Prose (markdown output) ───────────────────────────────────── */
 .prose-chat {
   @apply text-[15px] leading-relaxed text-foreground;
 }
@@ -126,7 +124,6 @@
   @apply bg-gray-50/50;
 }
 
-/* ─── Custom Scrollbar ───────────────────────────────────────────── */
 ::-webkit-scrollbar {
   width: 5px;
   height: 5px;
@@ -144,7 +141,6 @@
   @apply bg-gray-400;
 }
 
-/* ─── Utility: Scrollbar hidden ─────────────────────────────────── */
 .scrollbar-hide {
   -ms-overflow-style: none;
   scrollbar-width: none;

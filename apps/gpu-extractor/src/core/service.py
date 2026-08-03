@@ -184,7 +184,6 @@ class ExtractionService:
             target_schema = self._schema_for_box(b_type)
 
             extractor = self.extractor_factory.get_extractor(b_type)
-            # Create a task for concurrent extraction against vLLM
             future = asyncio.create_task(extractor.extract_async(cropped, target_schema))
             promises.append(future)
             meta["promise_idx"] = len(promises) - 1

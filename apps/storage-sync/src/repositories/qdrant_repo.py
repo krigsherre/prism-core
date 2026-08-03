@@ -39,7 +39,6 @@ class QdrantRepository:
                 collection=self.collection_name,
             )
             
-            # Create a text index for BM25/keyword hybrid search
             await self.client.create_payload_index(
                 collection_name=self.collection_name,
                 field_name="content",

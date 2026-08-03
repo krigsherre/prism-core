@@ -122,7 +122,6 @@ class StatusConsumer:
         result = await session.execute(update_stmt)
         row = result.fetchone()
 
-        # If storage-sync was down for the initial PENDING upsert, create the row now.
         if not row:
             await self._upsert_document_job(
                 session,
@@ -184,7 +183,6 @@ class StatusConsumer:
                 
         stmt = insert(DocumentJob).values(**insert_values)
 
-        # Never clobber a real filename/s3_uri with "unknown"/null from later pipeline stages
         incoming_filename = insert_values.get("filename") or "unknown"
         update_set = {
             k: getattr(stmt.excluded, k)

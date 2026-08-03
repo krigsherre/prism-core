@@ -60,7 +60,6 @@ def extract_layout(req: ImageRequest):
         with torch.no_grad():
             outputs = model(**inputs)
 
-        # Move outputs to CPU for post-processing
         if hasattr(outputs, "to"):
             outputs = outputs.to("cpu")
 

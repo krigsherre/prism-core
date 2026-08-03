@@ -83,7 +83,6 @@ class ChunkDOMAssembler:
             )
             self._buffers[key] = buf
         else:
-            # Prefer the larger declared total if workers disagree
             buf.chunk_total = max(buf.chunk_total, total)
 
         buf.chunks[index] = dom

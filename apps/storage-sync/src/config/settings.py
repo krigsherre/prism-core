@@ -4,8 +4,6 @@ from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 _APP_DIR = Path(__file__).resolve().parents[2]
-# In-repo: .../prism-core/apps/storage-sync/src/config → parents[4] = repo root.
-# In Docker image: /app/src/config → only 3 parents exist; skip missing .env.
 _REPO_ROOT = (
     Path(__file__).resolve().parents[4]
     if len(Path(__file__).resolve().parents) > 4
