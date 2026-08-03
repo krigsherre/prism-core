@@ -226,46 +226,67 @@ export const ChatMessage = ({ message }: ChatMessageProps) => {
                 </div>
               ) : null}
 
-              {message.references && message.references.length > 0 && (
-                <div className="pt-3 border-t border-border/60 mt-3">
-                  <div className="text-[11px] font-semibold text-muted uppercase tracking-wider mb-2 flex items-center gap-1">
-                    <FileText size={12} className="text-brand" /> Source Provenance ({message.references.length})
+              {message.references && message.references.length > 0 && (() => {
+                const uniqueRefs: Reference[] = []
+                const seenKeys = new Set<string>()
+                for (const ref of message.references) {
+                  const docId = ref.doc_id || (ref as any).document_id || ""
+                  const pageNum = ref.source_page || (ref as any).page || (ref as any).page_number || 1
+                  const key = `${docId || "doc"}_${pageNum}`
+                  if (!seenKeys.has(key)) {
+                    seenKeys.add(key)
+                    uniqueRefs.push(ref)
+                  }
+                }
+
+                if (uniqueRefs.length === 0) return null
+
+                return (
+                  <div className="pt-3 border-t border-border/60 mt-3">
+                    <div className="text-[11px] font-semibold text-muted uppercase tracking-wider mb-2 flex items-center gap-1">
+                      <FileText size={12} className="text-brand" /> Source Provenance ({uniqueRefs.length})
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {uniqueRefs.map((ref: Reference, i: number) => {
+                        const docId = ref.doc_id || (ref as any).document_id || ""
+                        const pageNum = ref.source_page || (ref as any).page || (ref as any).page_number || 1
+                        const bbox = ref.source_bbox || (ref as any).bbox
+                        return (
+                          <button
+                            key={i}
+                            onClick={async () => {
+                              if (docId) {
+                                const resolved = await resolveDocumentUrl(docId)
+                                setActiveDocumentUrl(resolved)
+                              }
+                              if (pageNum) {
+                                setActivePage(pageNum)
+                              }
+                              if (bbox) {
+                                if (Array.isArray(bbox) && bbox.length === 4) {
+                                  setActiveBBox({
+                                    x_min: bbox[0],
+                                    y_min: bbox[1],
+                                    x_max: bbox[2],
+                                    y_max: bbox[3],
+                                  })
+                                } else if (typeof bbox === "object") {
+                                  setActiveBBox(bbox)
+                                }
+                              }
+                            }}
+                            className="inline-flex items-center gap-1 text-[11px] bg-surface hover:bg-brandLight border border-border hover:border-brand/40 text-foreground hover:text-brand px-2.5 py-1 rounded-lg transition-all duration-150 shadow-sm"
+                          >
+                            <MapPin size={10} className="text-brand" />
+                            Page {pageNum}
+                            {docId && <span className="opacity-50 text-[10px]">({docId.slice(0, 8)})</span>}
+                          </button>
+                        )
+                      })}
+                    </div>
                   </div>
-                  <div className="flex flex-wrap gap-1.5">
-                    {message.references.map((ref: Reference, i: number) => (
-                      <button
-                        key={i}
-                        onClick={async () => {
-                          if (ref.doc_id) {
-                            const resolved = await resolveDocumentUrl(ref.doc_id)
-                            setActiveDocumentUrl(resolved)
-                          }
-                          if (ref.source_page) {
-                            setActivePage(ref.source_page)
-                          }
-                          if (ref.source_bbox) {
-                            if (Array.isArray(ref.source_bbox) && ref.source_bbox.length === 4) {
-                              setActiveBBox({
-                                x_min: ref.source_bbox[0],
-                                y_min: ref.source_bbox[1],
-                                x_max: ref.source_bbox[2],
-                                y_max: ref.source_bbox[3],
-                              })
-                            } else if (typeof ref.source_bbox === "object") {
-                              setActiveBBox(ref.source_bbox)
-                            }
-                          }
-                        }}
-                        className="inline-flex items-center gap-1 text-[11px] bg-surface hover:bg-brandLight border border-border hover:border-brand/40 text-foreground hover:text-brand px-2.5 py-1 rounded-lg transition-all duration-150 shadow-sm"
-                      >
-                        <MapPin size={10} className="text-brand" />
-                        Page {ref.source_page || 1}
-                        {ref.doc_id && <span className="opacity-50 text-[10px]">({ref.doc_id.slice(0, 8)})</span>}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
+                )
+              })()}
             </div>
           )}
         </div>
