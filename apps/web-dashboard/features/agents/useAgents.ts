@@ -5,6 +5,13 @@ import { api } from "@/services/apiClient"
 export const useAgents = () => {
   const queryClient = useQueryClient()
 
+  const { data: personas = [] } = useQuery({
+    queryKey: ["agent_personas"],
+    queryFn: async () => {
+      return await api.get<any[]>("/api/agents/personas")
+    }
+  })
+
   const { data: agents = [], isLoading: agentsLoading } = useQuery({
     queryKey: ["agents"],
     queryFn: async () => {
@@ -52,6 +59,7 @@ export const useAgents = () => {
   })
 
   return {
+    personas,
     agents,
     tasks,
     isLoading: agentsLoading || tasksLoading,

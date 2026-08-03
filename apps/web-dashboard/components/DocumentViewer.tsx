@@ -1,8 +1,9 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
+import { useRouter } from "next/navigation"
 import { useAppStore } from "@/store/useAppStore"
-import { Download, ZoomIn, X } from "lucide-react"
+import { Download, ZoomIn, X, Bot, Sparkles } from "lucide-react"
 import { API_BASE_URL } from "@/services/apiClient"
 import { Document, Page, pdfjs } from 'react-pdf'
 import 'react-pdf/dist/esm/Page/AnnotationLayer.css'
@@ -14,7 +15,8 @@ interface DocumentViewerProps {
   closeViewer: () => void
 }
 export const DocumentViewer = ({ closeViewer }: DocumentViewerProps) => {
-  const { activeBBox, activeDocumentUrl, activePage } = useAppStore()
+  const router = useRouter()
+  const { activeBBox, activeDocumentUrl, activePage, setActiveDocumentId } = useAppStore()
   const containerRef = useRef<HTMLDivElement>(null)
   const [numPages, setNumPages] = useState<number>()
   const [pageNumber, setPageNumber] = useState<number>(1)
@@ -148,8 +150,28 @@ export const DocumentViewer = ({ closeViewer }: DocumentViewerProps) => {
                 </div>
               }
               error={
-                <div className="w-full aspect-[8.5/11] bg-gray-100 flex items-center justify-center text-red-500 text-sm rounded-sm">
-                  Failed to load document
+                <div className="w-full aspect-[8.5/11] bg-surface border border-border flex flex-col items-center justify-center p-6 text-center space-y-4 rounded-xl shadow-card">
+                  <div className="w-12 h-12 rounded-xl bg-brand/10 text-brand flex items-center justify-center">
+                    <Sparkles size={24} />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-semibold text-foreground">PDF Binary Unavailable</h4>
+                    <p className="text-xs text-muted mt-1 max-w-xs leading-relaxed">
+                      The PDF binary file is not found, but extracted tables, vector chunks, and graph triples are indexed in RAG.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      if (activeDocumentUrl) {
+                        const docId = activeDocumentUrl.split("/").pop() || ""
+                        setActiveDocumentId(docId)
+                      }
+                      router.push("/chat")
+                    }}
+                    className="text-xs font-semibold bg-brand hover:bg-brandHover text-white px-4 py-2.5 rounded-xl shadow-xs transition-all flex items-center gap-2 cursor-pointer"
+                  >
+                    <Bot size={15} /> Divert to RAG Chat Query
+                  </button>
                 </div>
               }
             >

@@ -82,12 +82,54 @@ export const useHitl = () => {
     }
   })
 
+  const approveGenericMutation = useMutation({
+    mutationFn: async ({ document_id, node_id, target_table, unmapped_rows }: { document_id: string, node_id: string, target_table: string, unmapped_rows: any[] }) => {
+      return await api.post("/api/v1/hitl/approve-generic", {
+        document_id,
+        node_id,
+        target_table,
+        unmapped_rows,
+        tenant_id: "default-tenant"
+      })
+    },
+    onSuccess: () => {
+      addToast("success", "Approved table as Generic JSONB payload")
+      queryClient.invalidateQueries({ queryKey: ["hitl"] })
+    },
+    onError: (err: any) => {
+      addToast("error", err.message || "Failed to approve generic table")
+    }
+  })
+
+  const divertRagMutation = useMutation({
+    mutationFn: async ({ document_id, node_id, markdown_content }: { document_id: string, node_id: string, markdown_content: string }) => {
+      return await api.post("/api/v1/hitl/divert-rag", {
+        document_id,
+        node_id,
+        markdown_content,
+        parent_section_text: "",
+        tenant_id: "default-tenant"
+      })
+    },
+    onSuccess: () => {
+      addToast("success", "Diverted unmapped table directly to RAG (Vector & Graph)")
+      queryClient.invalidateQueries({ queryKey: ["hitl"] })
+    },
+    onError: (err: any) => {
+      addToast("error", err.message || "Failed to divert table to RAG")
+    }
+  })
+
   return { 
     requests, 
     isLoading,
     resolve: resolveMutation.mutate,
     discard: discardMutation.mutate,
+    approveGeneric: approveGenericMutation.mutate,
+    divertRag: divertRagMutation.mutate,
     isResolving: resolveMutation.isPending,
-    isDiscarding: discardMutation.isPending
+    isDiscarding: discardMutation.isPending,
+    isApprovingGeneric: approveGenericMutation.isPending,
+    isDivertingRag: divertRagMutation.isPending
   }
 }

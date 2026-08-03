@@ -7,10 +7,21 @@ export interface BoundingBox {
   y_max: number;
 }
 
+export interface Reference {
+  doc_id?: string;
+  source_page?: number;
+  source_bbox?: number[] | BoundingBox;
+}
+
 export interface Message {
   id: string;
   role: "user" | "agent";
   content: string;
+  thinking?: string;
+  statusTrace?: string[];
+  references?: Reference[];
+  personaRole?: string;
+  isStreaming?: boolean;
 }
 
 export interface AppState {
@@ -25,13 +36,16 @@ export interface AppState {
   activeBBox: BoundingBox | number[] | null;
   activePage: number | null;
   activeDocumentUrl: string | null;
+  activeDocumentId: string | null;
 
-  startWorkflow: (dag: string[], intent: string) => Promise<void>;
+  startWorkflow: (dag: string[], intent: string, agentRole?: string, documentId?: string) => Promise<void>;
   submitHumanCorrection: (correctedSql: string) => Promise<void>;
   setActiveBBox: (bbox: BoundingBox | number[] | null) => void;
   setActivePage: (page: number | null) => void;
   setActiveDocumentUrl: (url: string | null) => void;
+  setActiveDocumentId: (id: string | null) => void;
   addMessage: (msg: Message) => void;
+  clearMessages: () => void;
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -45,13 +59,16 @@ export const useAppStore = create<AppState>((set, get) => ({
   activeBBox: null,
   activePage: null,
   activeDocumentUrl: null,
+  activeDocumentId: null,
 
   setActiveBBox: (bbox) => set({ activeBBox: bbox }),
   setActivePage: (page) => set({ activePage: page }),
   setActiveDocumentUrl: (url) => set({ activeDocumentUrl: url }),
+  setActiveDocumentId: (id) => set({ activeDocumentId: id }),
   addMessage: (msg) => set((state) => ({ messages: [...state.messages, msg] })),
+  clearMessages: () => set({ messages: [] }),
 
-  startWorkflow: async (dag, intent) => {
+  startWorkflow: async (dag, intent, agentRole = "forensic_auditor", documentId = "") => {
     const threadId = "thread-" + Date.now()
     const userMsg: Message = { id: Date.now().toString(), role: "user", content: intent }
     set((state) => ({
@@ -62,10 +79,16 @@ export const useAppStore = create<AppState>((set, get) => ({
     }))
 
     try {
+      const targetDocId = documentId || get().activeDocumentId || ""
       const response = await fetch(`${API_BASE_URL}/api/chat?tenant_id=default-tenant`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ thread_id: threadId, message: intent })
+        body: JSON.stringify({
+          thread_id: threadId,
+          message: intent,
+          document_id: targetDocId,
+          agent_role: agentRole
+        })
       })
 
       if (!response.ok) {
@@ -79,9 +102,24 @@ export const useAppStore = create<AppState>((set, get) => ({
       const decoder = new TextDecoder()
       const agentMsgId = "agent-" + Date.now().toString()
       let currentContent = ""
+      let currentThinking = ""
+      let statusTrace: string[] = []
+      let references: Reference[] = []
 
       set((state) => ({
-        messages: [...state.messages, { id: agentMsgId, role: "agent", content: "" }]
+        messages: [
+          ...state.messages,
+          {
+            id: agentMsgId,
+            role: "agent",
+            content: "",
+            thinking: "",
+            statusTrace: [],
+            references: [],
+            personaRole: agentRole,
+            isStreaming: true
+          }
+        ]
       }))
 
       outer: while (true) {
@@ -97,18 +135,50 @@ export const useAppStore = create<AppState>((set, get) => ({
           if (dataStr === "[DONE]") { break outer }
           try {
             const data = JSON.parse(dataStr)
-            if (data.type === "token") {
-              currentContent += data.content
+            if (data.type === "thinking") {
+              currentThinking = data.content
               set((state) => ({
                 messages: state.messages.map(m =>
-                  m.id === agentMsgId ? { ...m, content: currentContent } : m
+                  m.id === agentMsgId ? { ...m, thinking: currentThinking } : m
                 )
               }))
-            } else if (data.type === "message_complete" && !currentContent && data.content) {
+            } else if (data.type === "status") {
+              if (data.content && !statusTrace.includes(data.content)) {
+                statusTrace = [...statusTrace, data.content]
+                set((state) => ({
+                  messages: state.messages.map(m =>
+                    m.id === agentMsgId ? { ...m, statusTrace } : m
+                  )
+                }))
+              }
+            } else if (data.type === "token") {
+              if (typeof data.content === "string" && data.content.startsWith("Thinking")) {
+                currentThinking = data.content.trim()
+                set((state) => ({
+                  messages: state.messages.map(m =>
+                    m.id === agentMsgId ? { ...m, thinking: currentThinking } : m
+                  )
+                }))
+              } else {
+                currentContent += data.content
+                set((state) => ({
+                  messages: state.messages.map(m =>
+                    m.id === agentMsgId ? { ...m, content: currentContent } : m
+                  )
+                }))
+              }
+            } else if (data.type === "message_complete" && data.content) {
               currentContent = data.content
               set((state) => ({
                 messages: state.messages.map(m =>
-                  m.id === agentMsgId ? { ...m, content: data.content } : m
+                  m.id === agentMsgId ? { ...m, content: data.content, isStreaming: false } : m
+                )
+              }))
+            } else if (data.type === "references" && Array.isArray(data.content)) {
+              references = data.content
+              set((state) => ({
+                messages: state.messages.map(m =>
+                  m.id === agentMsgId ? { ...m, references } : m
                 )
               }))
             }
@@ -126,7 +196,10 @@ export const useAppStore = create<AppState>((set, get) => ({
         ]
       }))
     } finally {
-      set({ workflowStatus: "IDLE" })
+      set((state) => ({
+        workflowStatus: "IDLE",
+        messages: state.messages.map(m => ({ ...m, isStreaming: false }))
+      }))
     }
   },
 

@@ -43,15 +43,42 @@ export const AgentCard = ({
       </div>
 
       {isSelected ? (
-        <div className="mt-4 pt-4 border-t border-border flex flex-col gap-2">
-          <input
+        <div className="mt-4 pt-4 border-t border-border flex flex-col gap-2.5">
+          {/* Predefined Rich Task Templates */}
+          <div className="flex flex-wrap gap-1.5">
+            {[
+              {
+                title: "Forensic Revenue Audit",
+                template: "Perform a comprehensive Forensic Accounting Audit:\n1. Extract Net Income from P&L and compare against Operating Cash Flow.\n2. Cross-check Related Party Transactions (Note disclosures) and flag ungrounded transactions.\n3. Verify if Assets = Liabilities + Equity identity holds mathematically."
+              },
+              {
+                title: "Financial Statement Extraction",
+                template: "Perform a Financial Statement Analysis:\n1. Extract Revenue from Operations, PBT, and PAT.\n2. Calculate YoY revenue growth and EBITDA margins.\n3. Verify Capital Work-in-Progress (CWIP) and Trade Payables disclosures."
+              },
+              {
+                title: "Credit & Debt Evaluation",
+                template: "Perform a Credit Risk & Liquidity Evaluation:\n1. Calculate Interest Coverage Ratio (EBIT / Interest Expense).\n2. Extract short-term borrowings vs Cash & Cash Equivalents.\n3. Outline the 12-month debt maturity repayment schedule."
+              }
+            ].map((item) => (
+              <button
+                key={item.title}
+                type="button"
+                onClick={() => setDeployPrompt(item.template)}
+                className="text-[11px] bg-brandLight/80 text-brand hover:bg-brand hover:text-white border border-brand/20 px-2.5 py-1 rounded-lg transition-all font-medium"
+              >
+                {item.title}
+              </button>
+            ))}
+          </div>
+          <textarea
             autoFocus
-            className="w-full text-sm border border-border rounded-lg px-3 py-2.5 outline-none focus:border-brand focus:ring-2 focus:ring-brand/10 transition-all text-foreground placeholder:text-muted"
-            placeholder="Describe the task…"
+            rows={3}
+            className="w-full text-sm border border-border rounded-xl px-3.5 py-2.5 outline-none focus:border-brand focus:ring-2 focus:ring-brand/10 transition-all text-foreground placeholder:text-muted resize-y min-h-[80px] max-h-[220px] leading-relaxed font-normal"
+            placeholder="Describe the task in detail with any specific instructions, requirements, or explanations…"
             value={deployPrompt}
             onChange={(e) => setDeployPrompt(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === "Enter") handleDeploy(agent.id)
+              if (e.key === "Enter" && e.metaKey) handleDeploy(agent.id)
               if (e.key === "Escape") setSelectedAgentId(null)
             }}
           />

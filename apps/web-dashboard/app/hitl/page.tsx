@@ -21,7 +21,7 @@ function defaultEditablePayload(req: HitlRequest): string {
 }
 
 export default function HITLPage() {
-  const { requests, isLoading, resolve, discard, isResolving, isDiscarding } = useHitl()
+  const { requests, isLoading, resolve, discard, approveGeneric, divertRag, isResolving, isDiscarding, isApprovingGeneric, isDivertingRag } = useHitl()
   const [editedPayloads, setEditedPayloads] = React.useState<Record<string, string>>({})
   const [selectedReqId, setSelectedReqId] = React.useState<string | null>(null)
   const setActiveBBox = useAppStore((state: any) => state.setActiveBBox)
@@ -180,6 +180,31 @@ export default function HITLPage() {
                     disabled={isDiscarding}
                   >
                     <XCircle size={16} /> Reject
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="rounded-full shadow-sm flex items-center gap-2 border-brand/40 text-brand hover:bg-brand/5"
+                    onClick={() => approveGeneric({
+                      document_id: req.document_id,
+                      node_id: req.id,
+                      target_table: req.payload?.target_table || "generic_table",
+                      unmapped_rows: typeof currentPayloadStr === "string" ? JSON.parse(currentPayloadStr || "[]") : []
+                    })}
+                    disabled={isApprovingGeneric}
+                  >
+                    Approve as Generic Table
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="rounded-full shadow-sm flex items-center gap-2 border-purple-500/40 text-purple-700 hover:bg-purple-50"
+                    onClick={() => divertRag({
+                      document_id: req.document_id,
+                      node_id: req.id,
+                      markdown_content: currentPayloadStr
+                    })}
+                    disabled={isDivertingRag}
+                  >
+                    Divert to RAG
                   </Button>
                   <Button
                     className="rounded-full shadow-sm flex items-center gap-2"

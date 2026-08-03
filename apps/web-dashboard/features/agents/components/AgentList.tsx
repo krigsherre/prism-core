@@ -9,7 +9,7 @@ import { AgentTaskRow } from "./AgentTaskRow"
 import { TaskDetailsModal } from "./TaskDetailsModal"
 
 export const AgentList = () => {
-  const { agents, tasks, isLoading, deployAgent, createAgent } = useAgents()
+  const { personas, agents, tasks, isLoading, deployAgent, createAgent } = useAgents()
   const [isCreatorOpen, setIsCreatorOpen] = useState(false)
 
   const [deployPrompt, setDeployPrompt] = useState("")
@@ -21,6 +21,14 @@ export const AgentList = () => {
     deployAgent(agentId, deployPrompt)
     setDeployPrompt("")
     setSelectedAgentId(null)
+  }
+
+  const handleDeployPersona = (p: any) => {
+    createAgent({
+      name: p.name,
+      description: p.description,
+      system_prompt: p.system_prompt
+    })
   }
 
   const activeTasks = tasks.filter((t: any) => t.status === "RUNNING").length
@@ -36,7 +44,7 @@ export const AgentList = () => {
             </div>
             <div>
               <h1 className="text-lg font-bold text-foreground">Virtual Employees</h1>
-              <p className="text-xs text-muted">Deploy specialized agents to perform complex workflows</p>
+              <p className="text-xs text-muted">Deploy specialized AI employee personas to perform complex financial workflows</p>
             </div>
           </div>
           <div className="flex items-center gap-3">
@@ -65,7 +73,7 @@ export const AgentList = () => {
               className="bg-brand text-white px-4 py-2.5 rounded-xl text-sm font-medium flex items-center gap-2 hover:bg-brandHover transition-colors shadow-sm"
             >
               <Plus size={16} />
-              Create Agent
+              Create Custom Agent
             </button>
           </div>
         </div>
@@ -78,11 +86,44 @@ export const AgentList = () => {
           </div>
         ) : (
           <div className="flex flex-col gap-10">
+            {/* Pre-configured AI Employee Personas */}
+            {personas.length > 0 && (
+              <section>
+                <div className="flex items-center gap-2 mb-4">
+                  <h2 className="text-xs font-semibold text-muted uppercase tracking-wider">
+                    Pre-Configured AI Employee Personas
+                  </h2>
+                  <span className="bg-purple-100 text-purple-700 text-[10px] font-bold px-2 py-0.5 rounded-full">
+                    {personas.length} Presets
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+                  {personas.map((p: any) => (
+                    <div key={p.id} className="bg-white border border-brand/20 rounded-xl p-5 shadow-sm flex flex-col justify-between hover:border-brand/40 transition-all">
+                      <div>
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className="text-lg">👤</span>
+                          <h3 className="text-sm font-bold text-foreground">{p.name}</h3>
+                        </div>
+                        <p className="text-xs text-muted mb-4 leading-relaxed">{p.description}</p>
+                      </div>
+                      <button
+                        onClick={() => handleDeployPersona(p)}
+                        className="w-full bg-brandLight text-brand border border-brand/30 hover:bg-brand hover:text-white text-xs font-semibold py-2 rounded-lg transition-colors flex items-center justify-center gap-1.5"
+                      >
+                        <Plus size={14} /> Instantiate Persona
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
+
             {/* Available Agents */}
             <section>
               <div className="flex items-center gap-2 mb-4">
                 <h2 className="text-xs font-semibold text-muted uppercase tracking-wider">
-                  Available Agents
+                  Active Virtual Employees
                 </h2>
                 <span className="bg-brandLight text-brand text-[10px] font-bold px-2 py-0.5 rounded-full">
                   {agents.length}
@@ -103,8 +144,8 @@ export const AgentList = () => {
                 {agents.length === 0 && (
                   <div className="col-span-full py-14 text-center border border-dashed border-border rounded-xl text-muted">
                     <Bot size={28} className="mx-auto mb-3 text-gray-300" />
-                    <p className="text-sm font-medium">No agents yet</p>
-                    <p className="text-xs mt-1">Create your first agent to get started</p>
+                    <p className="text-sm font-medium">No active virtual employees yet</p>
+                    <p className="text-xs mt-1">Instantiate a preset persona above or create a custom agent</p>
                   </div>
                 )}
               </div>

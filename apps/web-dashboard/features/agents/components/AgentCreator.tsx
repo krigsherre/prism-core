@@ -12,6 +12,24 @@ interface AgentCreatorProps {
   }) => void
 }
 
+const PRESETS = [
+  {
+    name: "Forensic Accounting Auditor",
+    description: "Cross-checks P&L vs Cash Flow, detects revenue anomalies, and verifies related-party transactions.",
+    prompt: "You are a Senior Forensic Accounting Auditor. Your job is to audit financial statements for inconsistencies, ungrounded metrics, revenue inflation, and related-party anomalies. Always cross-examine SQL table data against Vector footnote disclosures."
+  },
+  {
+    name: "Regulatory Compliance Officer",
+    description: "Verifies SEC Item 8 and Ind AS Schedule III footnote disclosures and regulatory risk tags.",
+    prompt: "You are a Regulatory Compliance Officer specializing in SEC 10-K (US-GAAP) and Indian Annual Reports (Ind AS / Schedule III). Ensure 100% disclosure completeness, audit footnote schedules, and identify regulatory risk disclosures."
+  },
+  {
+    name: "Credit Risk Analyst",
+    description: "Evaluates debt maturity schedules, liquidity ratios, EBITDA adjustments, and debt covenants.",
+    prompt: "You are a Principal Credit Risk Analyst. Evaluate debt sustainability, interest coverage ratios, short-term borrowings, and 12-month debt repayment schedules."
+  }
+]
+
 export const AgentCreator = ({ onClose, onCreate }: AgentCreatorProps) => {
   const [name, setName] = useState("")
   const [description, setDescription] = useState("")
@@ -22,6 +40,12 @@ export const AgentCreator = ({ onClose, onCreate }: AgentCreatorProps) => {
     if (!name || !systemPrompt) return
     onCreate({ name, description, system_prompt: systemPrompt })
     onClose()
+  }
+
+  const handleApplyPreset = (p: typeof PRESETS[0]) => {
+    setName(p.name)
+    setDescription(p.description)
+    setSystemPrompt(p.prompt)
   }
 
   const fieldClass =
@@ -51,6 +75,24 @@ export const AgentCreator = ({ onClose, onCreate }: AgentCreatorProps) => {
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-5">
+          {/* Quick-Fill Presets */}
+          <div>
+            <label className="block text-[11px] font-semibold text-muted uppercase tracking-wider mb-2">
+              Or Load Preset Template
+            </label>
+            <div className="flex flex-wrap gap-1.5">
+              {PRESETS.map((p) => (
+                <button
+                  key={p.name}
+                  type="button"
+                  onClick={() => handleApplyPreset(p)}
+                  className="text-xs bg-brandLight/60 text-brand border border-brand/20 hover:bg-brand hover:text-white rounded-lg px-2.5 py-1 transition-colors font-medium"
+                >
+                  ⚡ {p.name.split(" ")[0]}
+                </button>
+              ))}
+            </div>
+          </div>
           <div>
             <label className="block text-xs font-semibold text-foreground mb-1.5 uppercase tracking-wide">
               Agent Name <span className="text-red-500">*</span>
