@@ -31,6 +31,10 @@ Given the user's question, generate the optimal semantic search string to query 
 - Strip out conversational filler (e.g. 'Can you tell me about').
 - Focus on the core keywords, concepts, and entities.
 - If they ask about specific disclosures, policies, or risks, include those terms in the query.
+- FINANCIAL DOMAIN EXPANSION: When the user asks for financial ratios (e.g., Interest Coverage Ratio, Liquidity Ratio, Debt Ratio) or financial metrics, expand abstract ratio terms into raw filing terminology:
+  * Map 'Interest Coverage Ratio' -> 'Operating Income EBIT Interest Expense'
+  * Map 'Liquid cash reserves' -> 'Cash and cash equivalents Restricted cash Marketable securities'
+  * Map 'Short-term debt' -> 'Term Loan Senior Secured Commercial Paper Current portion of long term debt'
 """
     try:
         response = await llm.ainvoke([

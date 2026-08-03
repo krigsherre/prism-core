@@ -342,6 +342,7 @@ class DocumentRouter:
             type_name = dom_pb2.NodeType.Name(node.type)
             payload = {
                 "tenant_id": tenant_id,
+                "document_id": document_id,
                 "text": node.content,
                 "type": type_name,
                 "parent_section_text": parent_text,

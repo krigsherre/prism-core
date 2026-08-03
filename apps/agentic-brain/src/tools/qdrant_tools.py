@@ -42,42 +42,63 @@ class VectorSearchEngine:
                 return data[0] if isinstance(data[0], list) else data
             raise ValueError("Invalid embedding response")
 
+    def _keyword_score(self, query: str, point: Any) -> float:
+        """Calculate fallback relevance score based on keyword overlap with financial query."""
+        payload = getattr(point, "payload", None) or {}
+        text = str(payload.get("text", payload.get("content", payload.get("parent_section_text", "")))).lower()
+        query_words = [w for w in query.lower().split() if len(w) > 2]
+        score = 0.0
+        for w in query_words:
+            if w in text:
+                score += 1.0
+        # Give high weight to critical financial line items
+        financial_terms = ["operating income", "interest expense", "term loan", "ebit", "cash and cash equivalents", "short-term debt", "repayable", "repay"]
+        for ft in financial_terms:
+            if ft in text:
+                score += 3.0
+        return score
+
     async def _rerank(
         self, query: str, points: List[Any], top_k: int = 5
     ) -> List[Any]:
         if not points:
             return []
+        
+        # Take top candidate points to prevent payload explosion
+        candidates = points[:15]
         try:
             texts_to_rerank = []
-            for point in points:
+            for point in candidates:
                 payload = getattr(point, "payload", None) or {}
-                text_content = payload.get(
-                    "parent_section_text", payload.get("content", payload.get("text", ""))
-                )
-                texts_to_rerank.append(text_content)
+                # Prefer exact node text snippet over long parent_section_text
+                text_content = payload.get("text", payload.get("content", payload.get("parent_section_text", "")))
+                texts_to_rerank.append(str(text_content)[:500])
 
             rerank_endpoint = self.reranker_url.rstrip("/")
             if not rerank_endpoint.endswith("/rerank"):
                 rerank_endpoint = f"{rerank_endpoint}/rerank"
 
-            async with httpx.AsyncClient(timeout=10.0) as client:
+            async with httpx.AsyncClient(timeout=3.0) as client:
                 rerank_resp = await client.post(
                     rerank_endpoint,
                     json={"query": query, "texts": texts_to_rerank},
                 )
                 if rerank_resp.status_code == 200:
                     rerank_data = rerank_resp.json()
-                    top_indices = [item["index"] for item in rerank_data[:top_k]]
-                    return [points[idx] for idx in top_indices]
-                else:
-                    logger.warning(
-                        "Reranker failed, falling back to original ordering",
-                        status=rerank_resp.status_code,
-                    )
-                    return points[:top_k]
+                    top_indices = [item["index"] for item in rerank_data[:top_k] if item.get("index") < len(candidates)]
+                    if top_indices:
+                        return [candidates[idx] for idx in top_indices]
+                
+                logger.warning(
+                    "Reranker returned non-200, falling back to keyword relevance ordering",
+                    status=rerank_resp.status_code,
+                )
         except Exception as e:
-            logger.error("Reranking failed", error=str(e))
-            return points[:top_k]
+            logger.warning("Neural reranking failed/timed out, using keyword relevance ordering", error=str(e))
+
+        # Fallback: Sort candidates by keyword overlap score
+        sorted_candidates = sorted(candidates, key=lambda p: self._keyword_score(query, p), reverse=True)
+        return sorted_candidates[:top_k]
 
     async def query(
         self, query: str, tenant_id: str, document_id: Optional[str] = None
@@ -109,6 +130,22 @@ class VectorSearchEngine:
             )
 
             points = getattr(search_result, "points", None) or search_result or []
+            
+            # Fallback: If strict document_id filter yielded no points, retry with tenant_id filter only
+            if not points and document_id:
+                logger.info("Strict document_id vector search yielded no points; falling back to tenant_id search", document_id=document_id)
+                fallback_conditions = [
+                    models.FieldCondition(key="tenant_id", match=models.MatchValue(value=tenant_id))
+                ]
+                search_result = await qdrant_client.query_points(
+                    collection_name=self.collection_name,
+                    query=vector,
+                    query_filter=models.Filter(must=fallback_conditions),
+                    limit=50,
+                    with_payload=True,
+                )
+                points = getattr(search_result, "points", None) or search_result or []
+
             if not points:
                 return "No relevant documents found."
 
