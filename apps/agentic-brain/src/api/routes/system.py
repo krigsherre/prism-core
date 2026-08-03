@@ -59,108 +59,107 @@ async def resolve_hitl_request(payload: HitlResolveRequest):
     if not db_client.pool:
         await db_client.connect()
         
-    r = redis.from_url(settings.redis_url)
-    
-    async with db_client.pool.acquire() as conn:
-        hitl_row = await conn.fetchrow(
-            "SELECT id, payload FROM hitl_requests WHERE document_id = $1", 
-            payload.document_id
-        )
-        dlq_row = await conn.fetchrow(
-            "SELECT task_id as id, payload FROM dead_letter_queues WHERE document_id = $1", 
-            payload.document_id
-        )
-        
-        row = hitl_row or dlq_row
-        if not row:
-            raise HTTPException(status_code=404, detail="HITL or DLQ request not found for this document")
-            
-        original_payload = row["payload"]
-        if isinstance(original_payload, str):
-            original_payload = json.loads(original_payload)
-
-        before_snapshot = copy.deepcopy(original_payload)
-
-        try:
-            patched_data = json.loads(payload.correct_value)
-            original_payload["extracted_data"] = patched_data
-        except Exception:
-            if payload.field_name and "extracted_data" in original_payload:
-                original_payload["extracted_data"][payload.field_name] = payload.correct_value
-            else:
-                raise HTTPException(
-                    status_code=400,
-                    detail="correct_value must be JSON object/array or field_name must be set",
-                )
-
-        after_data = original_payload.get("extracted_data")
-
-        try:
-            correction = await persist_correction(
-                conn,
-                tenant_id=payload.tenant_id,
-                document_id=payload.document_id,
-                hitl_request_id=str(hitl_row["id"]) if hitl_row else "",
-                original_payload=before_snapshot if isinstance(before_snapshot, dict) else {},
-                after_data=after_data,
-                field_name=payload.field_name,
+    async with redis.from_url(settings.redis_url) as r:
+        async with db_client.pool.acquire() as conn:
+            hitl_row = await conn.fetchrow(
+                "SELECT id, payload FROM hitl_requests WHERE document_id = $1", 
+                payload.document_id
             )
-        except Exception as e:
-            # Table may not be migrated yet — still resolve the document
-            import structlog
-            structlog.get_logger(__name__).warning("Failed to persist correction", error=str(e))
-            correction = {"synonym_mappings": [], "id": None, "field_patches": []}
+            dlq_row = await conn.fetchrow(
+                "SELECT task_id as id, payload FROM dead_letter_queues WHERE document_id = $1", 
+                payload.document_id
+            )
+            
+            row = hitl_row or dlq_row
+            if not row:
+                raise HTTPException(status_code=404, detail="HITL or DLQ request not found for this document")
+                
+            original_payload = row["payload"]
+            if isinstance(original_payload, str):
+                original_payload = json.loads(original_payload)
 
-        producer = AIOKafkaProducer(bootstrap_servers=settings.kafka_broker)
-        await producer.start()
-        try:
-            for mapping in correction.get("synonym_mappings") or []:
-                event = dictionary_cdc_event(
-                    tenant_id=payload.tenant_id,
-                    target_table=original_payload.get("target_table") or "",
-                    raw_label=mapping["raw_label"],
-                    mapped_column=mapping["mapped_column"],
-                )
-                await producer.send_and_wait(
-                    "dictionary_cdc",
-                    key=payload.tenant_id.encode("utf-8"),
-                    value=json.dumps(event).encode("utf-8"),
-                )
+            before_snapshot = copy.deepcopy(original_payload)
 
-            few_shots = []
             try:
-                few_shots = await fetch_few_shot_corrections(
+                patched_data = json.loads(payload.correct_value)
+                original_payload["extracted_data"] = patched_data
+            except Exception:
+                if payload.field_name and "extracted_data" in original_payload:
+                    original_payload["extracted_data"][payload.field_name] = payload.correct_value
+                else:
+                    raise HTTPException(
+                        status_code=400,
+                        detail="correct_value must be JSON object/array or field_name must be set",
+                    )
+
+            after_data = original_payload.get("extracted_data")
+
+            try:
+                correction = await persist_correction(
                     conn,
                     tenant_id=payload.tenant_id,
-                    target_table=original_payload.get("target_table") or "",
-                    limit=3,
-                    critic_error=str(
-                        (original_payload.get("unmapped_jsonb") or [{}])[0].get("critic_error")
-                        if isinstance(original_payload.get("unmapped_jsonb"), list)
-                        and original_payload.get("unmapped_jsonb")
-                        else original_payload.get("error") or ""
-                    ),
+                    document_id=payload.document_id,
+                    hitl_request_id=str(hitl_row["id"]) if hitl_row else "",
+                    original_payload=before_snapshot if isinstance(before_snapshot, dict) else {},
+                    after_data=after_data,
+                    field_name=payload.field_name,
                 )
-            except Exception:
+            except Exception as e:
+                # Table may not be migrated yet — still resolve the document
+                import structlog
+                structlog.get_logger(__name__).warning("Failed to persist correction", error=str(e))
+                correction = {"synonym_mappings": [], "id": None, "field_patches": []}
+
+            producer = AIOKafkaProducer(bootstrap_servers=settings.kafka_broker)
+            await producer.start()
+            try:
+                for mapping in correction.get("synonym_mappings") or []:
+                    event = dictionary_cdc_event(
+                        tenant_id=payload.tenant_id,
+                        target_table=original_payload.get("target_table") or "",
+                        raw_label=mapping["raw_label"],
+                        mapped_column=mapping["mapped_column"],
+                    )
+                    await producer.send_and_wait(
+                        "dictionary_cdc",
+                        key=payload.tenant_id.encode("utf-8"),
+                        value=json.dumps(event).encode("utf-8"),
+                    )
+
                 few_shots = []
+                try:
+                    few_shots = await fetch_few_shot_corrections(
+                        conn,
+                        tenant_id=payload.tenant_id,
+                        target_table=original_payload.get("target_table") or "",
+                        limit=3,
+                        critic_error=str(
+                            (original_payload.get("unmapped_jsonb") or [{}])[0].get("critic_error")
+                            if isinstance(original_payload.get("unmapped_jsonb"), list)
+                            and original_payload.get("unmapped_jsonb")
+                            else original_payload.get("error") or ""
+                        ),
+                    )
+                except Exception:
+                    few_shots = []
 
-            original_payload["few_shot_examples"] = few_shots
-            original_payload["from_hitl_correction"] = correction.get("id")
+                original_payload["few_shot_examples"] = few_shots
+                original_payload["from_hitl_correction"] = correction.get("id")
 
-            await producer.send_and_wait(
-                "raw_table_doms",
-                key=payload.document_id.encode("utf-8"),
-                value=json.dumps(original_payload).encode("utf-8")
-            )
-        finally:
-            await producer.stop()
-            
-        if hitl_row:
-            await conn.execute("DELETE FROM hitl_requests WHERE id = $1", hitl_row["id"])
-            await r.delete(f"hitl:timeout:{payload.document_id}")
-            await r.delete(f"hitl:payload:{payload.document_id}")
-        if dlq_row:
-            await conn.execute("DELETE FROM dead_letter_queues WHERE task_id = $1", dlq_row["id"])
+                await producer.send_and_wait(
+                    "raw_table_doms",
+                    key=payload.document_id.encode("utf-8"),
+                    value=json.dumps(original_payload).encode("utf-8")
+                )
+            finally:
+                await producer.stop()
+                
+            if hitl_row:
+                await conn.execute("DELETE FROM hitl_requests WHERE id = $1", hitl_row["id"])
+                await r.delete(f"hitl:timeout:{payload.document_id}")
+                await r.delete(f"hitl:payload:{payload.document_id}")
+            if dlq_row:
+                await conn.execute("DELETE FROM dead_letter_queues WHERE task_id = $1", dlq_row["id"])
             
     return {
         "status": "resolved",
@@ -231,18 +230,17 @@ async def discard_hitl_request(payload: HitlDiscardRequest):
     if not db_client.pool:
         await db_client.connect()
         
-    r = redis.from_url(settings.redis_url)
-    
-    async with db_client.pool.acquire() as conn:
-        if payload.id:
-            await conn.execute("DELETE FROM hitl_requests WHERE id = $1", payload.id)
-            await conn.execute("DELETE FROM dead_letter_queues WHERE task_id = $1", payload.id)
-        else:
-            await conn.execute("DELETE FROM hitl_requests WHERE document_id = $1", payload.document_id)
-            await conn.execute("DELETE FROM dead_letter_queues WHERE document_id = $1", payload.document_id)
-        
-        await r.delete(f"hitl:timeout:{payload.document_id}")
-        await r.delete(f"hitl:payload:{payload.document_id}")
+    async with redis.from_url(settings.redis_url) as r:
+        async with db_client.pool.acquire() as conn:
+            if payload.id:
+                await conn.execute("DELETE FROM hitl_requests WHERE id = $1", payload.id)
+                await conn.execute("DELETE FROM dead_letter_queues WHERE task_id = $1", payload.id)
+            else:
+                await conn.execute("DELETE FROM hitl_requests WHERE document_id = $1", payload.document_id)
+                await conn.execute("DELETE FROM dead_letter_queues WHERE document_id = $1", payload.document_id)
+            
+            await r.delete(f"hitl:timeout:{payload.document_id}")
+            await r.delete(f"hitl:payload:{payload.document_id}")
 
     producer = AIOKafkaProducer(bootstrap_servers=settings.kafka_broker)
     await producer.start()

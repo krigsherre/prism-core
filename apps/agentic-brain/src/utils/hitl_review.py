@@ -96,33 +96,21 @@ async def generate_hitl_review_from_dlq(payload: Dict[str, Any], critic_error: s
         from llm.factory import LLMFactory, ModelTier
         from langchain_core.messages import HumanMessage, SystemMessage
 
-        llm = LLMFactory.get_llm(ModelTier.STANDARD)
-        schema_hint = HitlReview.model_json_schema()
-        prompt = (
-            "Return ONLY valid JSON matching this schema:\n"
-            f"{json.dumps(schema_hint)}\n\n"
+        structured_llm = LLMFactory.get_structured_llm(HitlReview, ModelTier.STANDARD)
+        sys_prompt = "You generate precise human-in-the-loop review payloads for document extraction."
+        user_prompt = (
             "Pinpoint issues row-by-row and column-by-column with approve/reject questions.\n"
             f"critic_error: {critic_error}\n"
             f"target_table: {target_table}\n"
             f"extracted_data: {json.dumps(extracted_data, default=str)[:2500]}\n"
             f"unmapped: {json.dumps(unmapped, default=str)[:1500]}"
         )
-        messages = [
-            SystemMessage(content="You generate precise human-in-the-loop review payloads for document extraction."),
-            HumanMessage(content=prompt),
-        ]
-        response = await llm.ainvoke(messages)
-        content = response.content if hasattr(response, "content") else str(response)
-        if isinstance(content, list):
-            content = "".join(
-                block.get("text", "") if isinstance(block, dict) else str(block) for block in content
-            )
-        text = str(content).strip()
-        if text.startswith("```"):
-            text = text.strip("`")
-            if text.startswith("json"):
-                text = text[4:].strip()
-        parsed = HitlReview.model_validate_json(text)
+        parsed: HitlReview = await structured_llm.ainvoke([
+            SystemMessage(content=sys_prompt),
+            HumanMessage(content=user_prompt),
+        ])
+        if parsed is None:
+            return fallback.model_dump()
         if not parsed.proposed_extracted_data:
             parsed.proposed_extracted_data = fallback.proposed_extracted_data
         return parsed.model_dump()

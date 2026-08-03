@@ -40,7 +40,6 @@ async def chat(req: ChatRequest, tenant_id: str = Depends(get_tenant_from_token)
     brain_graph = get_brain_graph()
     
     async def event_generator():
-        # Yield explicit thinking event for TTFT <200ms
         init_thinking = json.dumps({'type': 'thinking', 'content': f'Analyzing query intent across SQL, Vector, and Graph for {req.agent_role}...'})
         yield f"data: {init_thinking}\n\n"
         
@@ -68,7 +67,6 @@ async def chat(req: ChatRequest, tenant_id: str = Depends(get_tenant_from_token)
         last_final_answer = ""
         last_references = []
         
-        # Audit log tracking variables
         audit_sql_accessed = False
         audit_vector_accessed = False
         audit_graph_accessed = False
@@ -84,7 +82,6 @@ async def chat(req: ChatRequest, tenant_id: str = Depends(get_tenant_from_token)
                     chunk_obj = event.get("data", {}).get("chunk")
                     if chunk_obj:
                         chunk_content = getattr(chunk_obj, "content", "")
-                        # Handle string content or reasoning content
                         if isinstance(chunk_content, list):
                             text_bits = [c.get("text", "") for c in chunk_content if isinstance(c, dict) and c.get("text")]
                             chunk_content = "".join(text_bits)
@@ -101,7 +98,6 @@ async def chat(req: ChatRequest, tenant_id: str = Depends(get_tenant_from_token)
                     input_data = event.get("data", {}).get("input")
                     if isinstance(input_data, dict) and "messages" in input_data:
                         try:
-                            # Flatten messages into text for audit log
                             prompt_text = "\n".join([m.content for m in input_data["messages"] if hasattr(m, "content") and isinstance(m.content, str)])
                             current_llm_trace = {"prompt": prompt_text, "response": ""}
                         except Exception:
@@ -109,7 +105,6 @@ async def chat(req: ChatRequest, tenant_id: str = Depends(get_tenant_from_token)
                 elif kind == "on_chat_model_end":
                     output_msg = event.get("data", {}).get("output")
                     if output_msg:
-                        # Capture raw output
                         try:
                             content = getattr(output_msg, "content", "")
                             if isinstance(content, list):
@@ -121,10 +116,8 @@ async def chat(req: ChatRequest, tenant_id: str = Depends(get_tenant_from_token)
                         except Exception:
                             pass
                         
-                        # Capture token usage
                         usage = getattr(output_msg, "usage_metadata", None)
                         if not usage:
-                            # Fallback to response_metadata
                             rm = getattr(output_msg, "response_metadata", {})
                             usage = rm.get("token_usage", rm.get("usage", {}))
                         
@@ -151,7 +144,6 @@ async def chat(req: ChatRequest, tenant_id: str = Depends(get_tenant_from_token)
             yield f"data: {json.dumps({'type': 'references', 'content': last_references})}\n\n"
             yield "data: [DONE]\n\n"
             
-            # Fire-and-forget audit log insertion
             asyncio.create_task(db_client.insert_chat_audit_log({
                 "tenant_id": tenant_id,
                 "thread_id": req.thread_id,

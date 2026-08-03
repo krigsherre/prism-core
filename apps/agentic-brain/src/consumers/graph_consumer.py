@@ -151,6 +151,10 @@ class GraphConsumer:
             r"amalgamation",
             r"pledged?",
             r"contingent\s+liabilit",
+            r"jurisdiction",
+            r"ownership",
+            r"exhibit\s+21",
+            r"consolidation",
         ]
         return any(re.search(pat, text, re.IGNORECASE) for pat in patterns)
 
