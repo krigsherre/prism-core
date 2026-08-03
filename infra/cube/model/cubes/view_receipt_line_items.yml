@@ -10,7 +10,7 @@ cubes:
   - name: avg_quantity
     type: avg
     sql: quantity
-  - name: sum_price
+  - name: total_unit_price
     type: sum
     sql: price
   - name: avg_price
