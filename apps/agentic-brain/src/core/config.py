@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     qdrant_url: str = "http://qdrant:6333"
     qdrant_collection: str = "document_chunks"
     embeddings_api_url: str = "http://embeddings-server:80/embed"
+    reranker_api_url: str = "http://reranker-server:80/rerank"
 
     llm_provider: str = "anthropic"
     llm_model: str = "claude-haiku-4-5-20251001"

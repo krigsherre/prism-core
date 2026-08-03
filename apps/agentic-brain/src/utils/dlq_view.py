@@ -28,7 +28,7 @@ async def list_hitl_requests(tenant_id: str = "default-tenant") -> List[Dict[str
         await db_client.connect()
     async with db_client.pool.acquire() as conn:
         rows = await conn.fetch(
-            "SELECT h.id, h.document_id, h.status, h.error, h.payload, h.created_at, dj.s3_uri FROM hitl_requests h LEFT JOIN document_jobs dj ON h.document_id = dj.document_id WHERE h.tenant_id = $1 ORDER BY h.created_at DESC LIMIT 100",
+            "SELECT h.id, h.document_id, h.status, h.error, h.payload, h.created_at, dj.s3_uri FROM hitl_requests h LEFT JOIN document_jobs dj ON h.document_id = dj.document_id WHERE h.tenant_id = $1 AND h.status = 'PENDING' ORDER BY h.created_at DESC LIMIT 100",
             tenant_id
         )
         import json

@@ -82,9 +82,53 @@ class AsyncPostgresClient:
         if self.pool:
             await self.pool.close()
 
+    async def insert_chat_audit_log(self, audit_data: dict) -> None:
+        """Insert a chat audit log record into Postgres."""
+        if not self.pool: await self.connect()
+        query = """
+            INSERT INTO chat_audit_logs (
+                id, tenant_id, thread_id, document_id, user_message, agent_response,
+                sql_accessed, vector_accessed, graph_accessed, llm_traces,
+                input_tokens, output_tokens
+            ) VALUES (
+                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12
+            )
+        """
+        async with self.pool.acquire() as conn:
+            import uuid
+            log_id = str(uuid.uuid4())
+            await conn.execute(
+                query,
+                log_id,
+                audit_data.get("tenant_id", "default-tenant"),
+                audit_data.get("thread_id", ""),
+                audit_data.get("document_id", ""),
+                audit_data.get("user_message", ""),
+                audit_data.get("agent_response", ""),
+                audit_data.get("sql_accessed", False),
+                audit_data.get("vector_accessed", False),
+                audit_data.get("graph_accessed", False),
+                json.dumps(audit_data.get("llm_traces", [])) if audit_data.get("llm_traces") else None,
+                audit_data.get("input_tokens", None),
+                audit_data.get("output_tokens", None)
+            )
+            logger.info("Chat audit log inserted", log_id=log_id, thread_id=audit_data.get("thread_id"))
+
     def acquire(self):
         if not self.pool:
             raise RuntimeError("Database pool is not connected")
         return self.pool.acquire()
+
+    async def fetch_tenant_documents(self, tenant_id: str) -> list:
+        """Fetch all available documents and their metadata for a given tenant."""
+        if not self.pool: await self.connect()
+        query = """
+            SELECT document_id, filename, company_name, ticker, fiscal_period
+            FROM document_jobs 
+            WHERE tenant_id = $1
+        """
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(query, tenant_id)
+            return [dict(r) for r in rows]
 
 db_client = AsyncPostgresClient()

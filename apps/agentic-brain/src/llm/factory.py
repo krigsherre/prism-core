@@ -47,7 +47,7 @@ class LLMFactory:
         if provider == "openai":
             base_url = os.environ.get("OPENAI_BASE_URL") or os.environ.get("OPENAI_API_BASE")
             api_key = os.environ.get("OPENAI_API_KEY", "sk-local-dummy-key")
-            kwargs = {"model": model_name, "temperature": temperature, "api_key": api_key}
+            kwargs = {"model": model_name, "temperature": temperature, "api_key": api_key, "streaming": True, "stream_options": {"include_usage": True}}
             if base_url:
                 kwargs["base_url"] = base_url
             return ChatOpenAI(**kwargs)
@@ -55,9 +55,11 @@ class LLMFactory:
             api_key = os.environ.get("ANTHROPIC_API_KEY") or ""
             if not api_key:
                 raise ValueError("ANTHROPIC_API_KEY is not set")
-            return ChatAnthropic(model=model_name, api_key=api_key, temperature=temperature)
+            # For Anthropic, usage metadata is usually streamed by default in newer versions, 
+            # or requires stream_usage=True if available. We will pass it in kwargs just in case.
+            return ChatAnthropic(model=model_name, api_key=api_key, temperature=temperature, streaming=True)
         elif provider == "google":
-            return ChatGoogleGenerativeAI(model=model_name, temperature=temperature)
+            return ChatGoogleGenerativeAI(model=model_name, temperature=temperature, streaming=True)
         elif provider == "vllm":
             vllm_url = os.environ.get("VLLM_API_BASE", "http://vllm-server:8002")
             return ChatOpenAI(
@@ -65,13 +67,15 @@ class LLMFactory:
                 temperature=temperature,
                 api_key=os.environ.get("VLLM_API_KEY", "EMPTY"),
                 base_url=vllm_url,
+                streaming=True,
             )
         elif provider == "ollama":
             ollama_url = (
                 os.environ.get("OLLAMA_BASE_URL", "http://host.docker.internal:11434")
                 .rstrip("/").rstrip("/v1")
             )
-            return ChatOllama(model=model_name, temperature=temperature, base_url=ollama_url)
+            num_ctx = int(os.environ.get("OLLAMA_NUM_CTX", "8192"))
+            return ChatOllama(model=model_name, temperature=temperature, base_url=ollama_url, num_ctx=num_ctx, streaming=True)
         else:
             raise ValueError(f"Unsupported LLM provider: {provider}")
 

@@ -392,7 +392,12 @@ async def document_status_stream(request: Request, tenant_id: str = "default-ten
         finally:
             status_broadcaster.unsubscribe(q)
 
-    return StreamingResponse(event_generator(), media_type="text/event-stream")
+    headers = {
+        "Cache-Control": "no-cache, no-transform",
+        "Connection": "keep-alive",
+        "X-Accel-Buffering": "no"
+    }
+    return StreamingResponse(event_generator(), media_type="text/event-stream", headers=headers)
 
 @router.get("/api/documents/content")
 async def get_document_content(s3_uri: str, disposition: str = "inline"):
@@ -429,6 +434,7 @@ async def get_document_content(s3_uri: str, disposition: str = "inline"):
         disp = "attachment" if disposition.lower() == "attachment" else "inline"
         headers = {
             "Content-Disposition": f'{disp}; filename="{filename}"',
+            "Cache-Control": "public, max-age=31536000, immutable",
         }
             
         return StreamingResponse(

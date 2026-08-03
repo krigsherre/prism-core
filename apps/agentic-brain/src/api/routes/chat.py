@@ -7,6 +7,8 @@ from langchain_core.messages import HumanMessage
 
 from api.middleware.auth import get_tenant_from_token
 from graph.workflow import get_brain_graph
+from core.db import db_client
+import asyncio
 
 logger = structlog.get_logger(__name__)
 router = APIRouter(prefix="/api/chat", tags=["chat"])
@@ -65,6 +67,15 @@ async def chat(req: ChatRequest, tenant_id: str = Depends(get_tenant_from_token)
         
         last_final_answer = ""
         last_references = []
+        
+        # Audit log tracking variables
+        audit_sql_accessed = False
+        audit_vector_accessed = False
+        audit_graph_accessed = False
+        audit_input_tokens = 0
+        audit_output_tokens = 0
+        audit_llm_traces = []
+        current_llm_trace = {}
 
         try:
             async for event in brain_graph.astream_events(initial_state, config, version="v2"):
@@ -81,8 +92,45 @@ async def chat(req: ChatRequest, tenant_id: str = Depends(get_tenant_from_token)
                             yield f"data: {json.dumps({'type': 'token', 'content': chunk_content})}\n\n"
                 elif kind == "on_chain_start":
                     node_name = event.get("name")
+                    if node_name == "execute_sql": audit_sql_accessed = True
+                    if node_name == "execute_vector": audit_vector_accessed = True
+                    if node_name == "execute_cypher": audit_graph_accessed = True
                     if node_name and node_name in NODE_STEP_MAPPING:
                         yield f"data: {json.dumps({'type': 'status', 'content': NODE_STEP_MAPPING[node_name]})}\n\n"
+                elif kind == "on_chat_model_start":
+                    input_data = event.get("data", {}).get("input")
+                    if isinstance(input_data, dict) and "messages" in input_data:
+                        try:
+                            # Flatten messages into text for audit log
+                            prompt_text = "\n".join([m.content for m in input_data["messages"] if hasattr(m, "content") and isinstance(m.content, str)])
+                            current_llm_trace = {"prompt": prompt_text, "response": ""}
+                        except Exception:
+                            pass
+                elif kind == "on_chat_model_end":
+                    output_msg = event.get("data", {}).get("output")
+                    if output_msg:
+                        # Capture raw output
+                        try:
+                            content = getattr(output_msg, "content", "")
+                            if isinstance(content, list):
+                                content = "".join([c.get("text", "") for c in content if isinstance(c, dict) and c.get("text")])
+                            if current_llm_trace:
+                                current_llm_trace["response"] = content
+                                audit_llm_traces.append(current_llm_trace)
+                                current_llm_trace = {}
+                        except Exception:
+                            pass
+                        
+                        # Capture token usage
+                        usage = getattr(output_msg, "usage_metadata", None)
+                        if not usage:
+                            # Fallback to response_metadata
+                            rm = getattr(output_msg, "response_metadata", {})
+                            usage = rm.get("token_usage", rm.get("usage", {}))
+                        
+                        if usage:
+                            audit_input_tokens += usage.get("input_tokens", usage.get("prompt_tokens", 0))
+                            audit_output_tokens += usage.get("output_tokens", usage.get("completion_tokens", 0))
                 elif kind == "on_chain_end":
                     output = event.get("data", {}).get("output")
                     if isinstance(output, dict):
@@ -103,8 +151,32 @@ async def chat(req: ChatRequest, tenant_id: str = Depends(get_tenant_from_token)
             yield f"data: {json.dumps({'type': 'references', 'content': last_references})}\n\n"
             yield "data: [DONE]\n\n"
             
+            # Fire-and-forget audit log insertion
+            asyncio.create_task(db_client.insert_chat_audit_log({
+                "tenant_id": tenant_id,
+                "thread_id": req.thread_id,
+                "document_id": req.document_id,
+                "user_message": req.message,
+                "agent_response": last_final_answer,
+                "sql_accessed": audit_sql_accessed,
+                "vector_accessed": audit_vector_accessed,
+                "graph_accessed": audit_graph_accessed,
+                "llm_traces": audit_llm_traces,
+                "input_tokens": audit_input_tokens,
+                "output_tokens": audit_output_tokens
+            }))
+            
+            
         except Exception as e:
             logger.error("Graph execution failed", error=str(e), exc_info=True)
             yield f"data: {json.dumps({'type': 'error', 'content': str(e) or repr(e)})}\n\n"
             
-    return StreamingResponse(event_generator(), media_type="text/event-stream")
+    return StreamingResponse(
+        event_generator(), 
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no"
+        }
+    )

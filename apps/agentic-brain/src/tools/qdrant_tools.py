@@ -22,9 +22,11 @@ async def query_vector_db(query: str, tenant_id: str, document_id: str = None) -
             embed_endpoint = f"{embed_endpoint}/embed"
 
         async with httpx.AsyncClient(timeout=10.0) as client:
+            # BGE models require a specific instruction prefix for search queries
+            bge_query = f"Represent this sentence for searching relevant passages: {query[:1900]}"
             response = await client.post(
                 embed_endpoint,
-                json={"inputs": query[:2000]}
+                json={"inputs": bge_query}
             )
             response.raise_for_status()
             data = response.json()
@@ -45,19 +47,57 @@ async def query_vector_db(query: str, tenant_id: str, document_id: str = None) -
             collection_name=collection,
             query=vector,
             query_filter=models.Filter(must=must_conditions),
-            limit=10,
+            limit=50,
             with_payload=True,
         )
         
-        results = []
         points = getattr(search_result, "points", None) or search_result or []
-        for point in points:
+        if not points:
+            return "No relevant documents found."
+            
+        # Reranking using TEI bge-reranker-base
+        try:
+            texts_to_rerank = []
+            for point in points:
+                payload = getattr(point, "payload", None) or {}
+                # Use parent_section_text for broader context if available
+                text_content = payload.get("parent_section_text", payload.get("content", payload.get("text", "")))
+                texts_to_rerank.append(text_content)
+                
+            rerank_endpoint = settings.reranker_api_url.rstrip("/")
+            if not rerank_endpoint.endswith("/rerank"):
+                rerank_endpoint = f"{rerank_endpoint}/rerank"
+                
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                rerank_resp = await client.post(
+                    rerank_endpoint,
+                    json={
+                        "query": query,
+                        "texts": texts_to_rerank
+                    }
+                )
+                if rerank_resp.status_code == 200:
+                    rerank_data = rerank_resp.json()
+                    # TEI returns a list of dicts with 'index' and 'score'
+                    # e.g., [{"index": 5, "score": 0.99}, ...]
+                    top_indices = [item["index"] for item in rerank_data[:5]]
+                    best_points = [points[idx] for idx in top_indices]
+                else:
+                    logger.warning("Reranker failed, falling back to original ordering", status=rerank_resp.status_code)
+                    best_points = points[:5]
+        except Exception as e:
+            logger.error("Reranking failed", error=str(e))
+            best_points = points[:5]
+        
+        results = []
+        for point in best_points:
             payload = getattr(point, "payload", None) or {}
+            # Return the full context for better Synthesis
             results.append({
-                "text": payload.get("content", payload.get("text", "")),
+                "text": payload.get("parent_section_text", payload.get("content", payload.get("text", ""))),
                 "source_page": payload.get("source_page", 1),
-                "source_bbox": payload.get("source_bbox", [0,0,0,0]),
-                "document_id": payload.get("document_id", document_id),
+                "source_bbox": payload.get("source_bbox", []),
+                "document_id": payload.get("document_id", ""),
                 "score": getattr(point, "score", None),
             })
             

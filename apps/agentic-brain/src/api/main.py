@@ -71,6 +71,8 @@ def create_app() -> FastAPI:
     app.include_router(chat.router)
     app.include_router(system.router)
     app.include_router(agents.router)
+    from api.routes import internal
+    app.include_router(internal.router)
 
     @app.exception_handler(Exception)
     async def global_exception_handler(request: Request, exc: Exception):

@@ -96,7 +96,7 @@ async def generate_hitl_review_from_dlq(payload: Dict[str, Any], critic_error: s
         from llm.factory import LLMFactory, ModelTier
         from langchain_core.messages import HumanMessage, SystemMessage
 
-        llm = LLMFactory.get_llm(ModelTier.FRONTIER)
+        llm = LLMFactory.get_llm(ModelTier.STANDARD)
         schema_hint = HitlReview.model_json_schema()
         prompt = (
             "Return ONLY valid JSON matching this schema:\n"
