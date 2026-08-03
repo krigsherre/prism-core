@@ -1,51 +1,42 @@
 import json
-import asyncio
-import structlog
 import uuid
+import structlog
 from aiokafka import AIOKafkaConsumer
+from sqlalchemy.orm import sessionmaker
 from config.settings import settings
 from db.models import HitlRequest
-from sqlalchemy.orm import sessionmaker
+from kafka.consumers.base import BaseKafkaConsumer
 
 logger = structlog.get_logger(__name__)
 
-class HitlConsumer:
+
+class HitlConsumer(BaseKafkaConsumer):
     """
     Consumes messages from the `schema_drift_anomalies` topic and writes them
     to the `hitl_requests` database table for human review.
     """
-    def __init__(self, session_factory: sessionmaker):
-        self.session_factory = session_factory
-        self._consumer = None
 
-    async def run(self):
-        self._consumer = AIOKafkaConsumer(
-            "schema_drift_anomalies",
-            bootstrap_servers=settings.kafka_broker,
+    def __init__(self, session_factory: sessionmaker) -> None:
+        super().__init__(
+            topics=["schema_drift_anomalies"],
             group_id="hitl-consumer-group",
-            auto_offset_reset="earliest",
-            enable_auto_commit=False
+            enable_auto_commit=False,
         )
-        
-        try:
-            await self._consumer.start()
-            logger.info("HitlConsumer started listening to schema_drift_anomalies...")
-            
-            async for msg in self._consumer:
-                await self._process_message(msg)
-                
-        except asyncio.CancelledError:
-            logger.info("HitlConsumer cancelled")
-        except Exception as e:
-            logger.error("HitlConsumer failed unexpectedly", error=str(e))
-        finally:
-            if self._consumer:
-                await self._consumer.stop()
+        self.session_factory = session_factory
+
+    def _create_consumer(self):
+        return AIOKafkaConsumer(
+            *self.topics,
+            bootstrap_servers=settings.kafka_broker,
+            group_id=self.group_id,
+            auto_offset_reset=self.auto_offset_reset,
+            enable_auto_commit=self.enable_auto_commit,
+        )
 
     async def _process_message(self, msg) -> None:
         if not msg.value:
             return
-            
+
         try:
             payload = json.loads(msg.value.decode("utf-8"))
             await self._insert_hitl_entry(payload)
@@ -54,7 +45,8 @@ class HitlConsumer:
         except Exception as e:
             logger.error("Failed to process HITL message", error=str(e))
         finally:
-            await self._consumer.commit()
+            if self._consumer:
+                await self._consumer.commit()
 
     def _build_error_message(self, payload: dict) -> str:
         hitl_review = payload.get("hitl_review") or {}
@@ -83,7 +75,7 @@ class HitlConsumer:
                 document_id=document_id,
                 status="PENDING",
                 error=error_msg,
-                payload=payload
+                payload=payload,
             )
             session.add(hitl_entry)
             await session.commit()

@@ -1,18 +1,18 @@
 import asyncio
-import structlog
 import logging
+import structlog
 from opentelemetry import trace
 
 from kafka.cdc.observer import DebeziumObserver
-from kafka.consumers.auto_promote import AutoPromoteConsumer
 from kafka.consumers.aligned_consumer import AlignedSQLConsumer
+from kafka.consumers.auto_promote import AutoPromoteConsumer
 from kafka.consumers.bifurcation import BifurcationConsumer
+from kafka.consumers.hitl_consumer import HitlConsumer
 from kafka.consumers.status_consumer import StatusConsumer
 from kafka.consumers.system_dlq import SystemDlqConsumer
-from kafka.consumers.hitl_consumer import HitlConsumer
-
-from repositories.sql_repo import SQLRepository
 from repositories.qdrant_repo import QdrantRepository
+from repositories.sql_repo import SQLRepository
+
 
 def otel_processor(logger, log_method, event_dict):
     span = trace.get_current_span()
@@ -21,6 +21,7 @@ def otel_processor(logger, log_method, event_dict):
         event_dict["trace_id"] = format(ctx.trace_id, "032x")
         event_dict["span_id"] = format(ctx.span_id, "016x")
     return event_dict
+
 
 structlog.configure(
     processors=[
@@ -42,7 +43,8 @@ logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = structlog.get_logger(__name__)
 
 
-async def main():
+async def main() -> None:
+    """Main worker entry point orchestrating database initialization and async Kafka consumers."""
     logger.info("Initializing Storage & CDC Worker")
 
     sql_repo = SQLRepository()
@@ -54,6 +56,7 @@ async def main():
 
 
 async def _init_qdrant(qdrant_repo: QdrantRepository) -> None:
+    """Initialize Qdrant collection and vector payload indexes."""
     try:
         await qdrant_repo.initialize_collection()
     except Exception as e:
@@ -61,15 +64,17 @@ async def _init_qdrant(qdrant_repo: QdrantRepository) -> None:
 
 
 async def _init_database() -> None:
+    """Initialize PostgreSQL database tables, triggers, and schema views."""
     try:
-        from db.postgres import engine
         from db.models import Base
+        from db.postgres import engine
         from sqlalchemy import text
-        
+
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
-            
-            await conn.execute(text("""
+
+            await conn.execute(
+                text("""
                 CREATE OR REPLACE FUNCTION notify_document_job_update()
                 RETURNS trigger AS $$
                 BEGIN
@@ -89,29 +94,34 @@ async def _init_database() -> None:
                     RETURN NEW;
                 END;
                 $$ LANGUAGE plpgsql;
-            """))
+            """)
+            )
             await conn.execute(text("DROP TRIGGER IF EXISTS trigger_document_job_update ON document_jobs;"))
-            await conn.execute(text("""
+            await conn.execute(
+                text("""
                 CREATE TRIGGER trigger_document_job_update
                 AFTER INSERT OR UPDATE ON document_jobs
                 FOR EACH ROW
                 EXECUTE FUNCTION notify_document_job_update();
-            """))
+            """)
+            )
             logger.info("Database tables and triggers verified/created")
-            
+
     except Exception as e:
         logger.error("Failed to initialize tables/triggers", error=str(e))
-        
+
     try:
         from db.views import generate_schema_views
+
         await generate_schema_views()
     except Exception as e:
         logger.error("Failed to generate views", error=str(e))
 
 
 async def _run_consumers(sql_repo: SQLRepository, qdrant_repo: QdrantRepository) -> None:
+    """Concurrently run all Kafka consumer services and Debezium CDC observer."""
     from db.postgres import AsyncSessionLocal
-    
+
     status_consumer = StatusConsumer(AsyncSessionLocal)
     system_dlq_consumer = SystemDlqConsumer(AsyncSessionLocal)
     hitl_consumer = HitlConsumer(AsyncSessionLocal)
@@ -119,7 +129,7 @@ async def _run_consumers(sql_repo: SQLRepository, qdrant_repo: QdrantRepository)
     aligned_consumer = AlignedSQLConsumer(sql_repo)
     auto_promote_consumer = AutoPromoteConsumer(sql_repo)
     cdc_observer = DebeziumObserver(qdrant_repo)
-    
+
     await asyncio.gather(
         status_consumer.run(),
         system_dlq_consumer.run(),
@@ -127,7 +137,7 @@ async def _run_consumers(sql_repo: SQLRepository, qdrant_repo: QdrantRepository)
         bifurcation.run(),
         aligned_consumer.run(),
         auto_promote_consumer.run(),
-        cdc_observer.run()
+        cdc_observer.run(),
     )
 
 

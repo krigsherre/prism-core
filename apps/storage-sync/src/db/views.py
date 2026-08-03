@@ -85,9 +85,40 @@ def _build_column_selections(schema_def: dict) -> str:
         
     return ",\n                        " + ",\n                        ".join(columns_sql)
 
+SYNONYM_SQL_MAP: dict = {
+    "net_income": ["net_income", "net_income_loss", "consolidated_net_income", "net_earnings", "Net Income"],
+    "total_revenue": ["total_revenue", "total_net_sales", "revenue", "net_sales", "Total Net Sales", "Total Revenue"],
+    "revenue_from_operations": ["revenue_from_operations", "operating_revenue", "total_revenue", "net_sales"],
+    "cost_of_goods_sold": ["cost_of_goods_sold", "cost_of_sales", "cogs", "Cost of Sales"],
+    "gross_profit": ["gross_profit", "gross_margin", "Gross Profit"],
+    "operating_income": ["operating_income", "operating_profit", "income_from_operations", "Operating Income"],
+    "tax_expense": ["tax_expense", "provision_for_income_taxes", "income_tax_expense", "Income Taxes"],
+    "eps_basic": ["eps_basic", "basic_eps", "basic_earnings_per_share"],
+    "eps_diluted": ["eps_diluted", "diluted_eps", "diluted_earnings_per_share"],
+    "net_cash_from_operating_activities": ["net_cash_from_operating_activities", "operating_cash_flow", "cash_from_operations", "Net Cash from Operating Activities"],
+    "share_based_compensation": ["share_based_compensation", "stock_based_compensation"],
+    "depreciation_and_amortization_cf": ["depreciation_and_amortization_cf", "depreciation_and_amortization"],
+    "change_in_operating_assets_liabilities": ["change_in_operating_assets_liabilities", "working_capital_changes"],
+    "capital_expenditure": ["capital_expenditure", "capex", "capital_expenditures"],
+    "net_cash_from_investing_activities": ["net_cash_from_investing_activities", "investing_cash_flow", "Net Cash from Investing Activities"],
+    "net_cash_from_financing_activities": ["net_cash_from_financing_activities", "financing_cash_flow", "Net Cash from Financing Activities"],
+}
+
 def _build_single_column_sql(col_name: str, val_type: str) -> str:
     v_lower = val_type.lower() if isinstance(val_type, str) else "str"
-    val_expr = f"t.strict_columns->>'{col_name}'"
+    synonyms = SYNONYM_SQL_MAP.get(col_name, [col_name])
+    if col_name not in synonyms:
+        synonyms = [col_name] + synonyms
+        
+    coalesce_parts = []
+    for s in synonyms:
+        s_title = s.replace("_", " ").title()
+        s_lower = s.lower()
+        keys_to_try = set([s, s_title, s_lower, s.replace("_", " ")])
+        for k in keys_to_try:
+            coalesce_parts.append(f"t.strict_columns->>'{k}'")
+            coalesce_parts.append(f"t.unmapped_jsonb->>'{k}'")
+    val_expr = f"COALESCE({', '.join(coalesce_parts)})"
     
     if v_lower in ["int", "float"]:
         cast_type = "integer" if v_lower == "int" else "numeric"
@@ -96,14 +127,14 @@ def _build_single_column_sql(col_name: str, val_type: str) -> str:
         
     elif v_lower in ["datetime", "bool", "boolean"]:
         cast_type = "timestamp" if v_lower == "datetime" else "boolean"
-        clean_expr = f"CASE WHEN BTRIM(LOWER(t.strict_columns->>'{col_name}')) IN ('', 'na', 'n/a', 'none', 'null', 'nan', 'unknown', '-') THEN NULL ELSE t.strict_columns->>'{col_name}' END"
+        clean_expr = f"CASE WHEN BTRIM(LOWER({val_expr})) IN ('', 'na', 'n/a', 'none', 'null', 'nan', 'unknown', '-') THEN NULL ELSE {val_expr} END"
         return f"({clean_expr})::{cast_type} AS {col_name}"
         
     elif v_lower == "dict":
-        return f"t.strict_columns->'{col_name}' AS {col_name}"
+        return f"COALESCE(t.strict_columns->'{col_name}', t.unmapped_jsonb->'{col_name}') AS {col_name}"
         
     else:
-        return f"NULLIF(t.strict_columns->>'{col_name}', '')::text AS {col_name}"
+        return f"NULLIF({val_expr}, '')::text AS {col_name}"
 
 def _build_create_view_sql(view_name: str, target_table: str, columns_str: str) -> str:
     return f"""

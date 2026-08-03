@@ -1,77 +1,55 @@
-import asyncio
 import json
 import structlog
 from aiokafka import AIOKafkaConsumer
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.exc import SQLAlchemyError
-from db.models import DocumentJob
-from repositories.sql_repo import SQLRepository
-from config.settings import settings
-from tenacity import retry, stop_after_attempt, wait_exponential
-from opentelemetry import trace
-from opentelemetry.propagate import extract
-from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy import update
+from sqlalchemy.dialects.postgresql import insert
+from config.settings import settings
+from db.models import DocumentJob
+from kafka.consumers.base import BaseKafkaConsumer
 
 logger = structlog.get_logger(__name__)
-tracer = trace.get_tracer(__name__)
 
-class StatusConsumer:
+
+class StatusConsumer(BaseKafkaConsumer):
+    """
+    Consumes document status updates from `document_status_events` topic
+    and upserts job state in `document_jobs` table.
+    """
+
     def __init__(self, async_session_maker) -> None:
-        self.async_session_maker = async_session_maker
-        self._consumer = None
-
-    @retry(stop=stop_after_attempt(5), wait=wait_exponential(multiplier=1, min=2, max=10), reraise=True)
-    async def _connect_kafka(self) -> None:
-        if self._consumer:
-            await self._consumer.start()
-
-    async def run(self) -> None:
-        self._consumer = AIOKafkaConsumer(
-            "document_status_events",
-            bootstrap_servers=settings.kafka_broker,
+        super().__init__(
+            topics=["document_status_events"],
             group_id="storage-sync-status-group",
-            auto_offset_reset="earliest",
-            enable_auto_commit=False
+            enable_auto_commit=False,
         )
-        
-        try:
-            await self._connect_kafka()
-        except Exception as e:
-            logger.error("Failed to connect StatusConsumer to Kafka", error=str(e))
-            return
-            
-        logger.info("StatusConsumer started...")
-        
-        try:
-            async for msg in self._consumer:
-                await self._process_message(msg)
-        except asyncio.CancelledError:
-            logger.info("StatusConsumer cancelled")
-        except Exception as e:
-            logger.error("StatusConsumer failed unexpectedly", error=str(e))
-        finally:
-            if self._consumer:
-                await self._consumer.stop()
+        self.async_session_maker = async_session_maker
+
+    def _create_consumer(self):
+        return AIOKafkaConsumer(
+            *self.topics,
+            bootstrap_servers=settings.kafka_broker,
+            group_id=self.group_id,
+            auto_offset_reset=self.auto_offset_reset,
+            enable_auto_commit=self.enable_auto_commit,
+        )
 
     async def _process_message(self, msg) -> None:
         if not msg.value:
             return
-            
-        headers_dict = {k: v.decode('utf-8') if isinstance(v, bytes) else v for k, v in (msg.headers or [])}
-        ctx = extract(headers_dict)
-        
-        with tracer.start_as_current_span("process_status_event", context=ctx):
-            try:
-                payload = json.loads(msg.value.decode("utf-8"))
-                tenant_id = self._resolve_tenant_id(payload, msg.key)
-                await self._process_status(payload, tenant_id)
+
+        try:
+            payload = json.loads(msg.value.decode("utf-8"))
+            tenant_id = self._resolve_tenant_id(payload, msg.key)
+            await self._process_status(payload, tenant_id)
+            if self._consumer:
                 await self._consumer.commit()
-            except json.JSONDecodeError:
-                logger.error("Failed to decode JSON", offset=msg.offset)
+        except json.JSONDecodeError:
+            logger.error("Failed to decode JSON", offset=msg.offset)
+            if self._consumer:
                 await self._consumer.commit()
-            except Exception as e:
-                logger.error("Failed to process status event", error=str(e))
+        except Exception as e:
+            logger.error("Failed to process status event", error=str(e))
+            if self._consumer:
                 await self._consumer.commit()
 
     @staticmethod
@@ -89,13 +67,12 @@ class StatusConsumer:
 
         return "default-tenant"
 
-    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10), reraise=True)
-    async def _process_status(self, payload: dict, tenant_id: str):
+    async def _process_status(self, payload: dict, tenant_id: str) -> None:
         document_id = payload.get("document_id")
         if not document_id:
             logger.warning("Status event missing document_id", payload=payload)
             return
-            
+
         async with self.async_session_maker() as session:
             async with session.begin():
                 if payload.get("sql_node_completed") or payload.get("graph_node_completed"):
@@ -103,22 +80,24 @@ class StatusConsumer:
                 else:
                     await self._upsert_document_job(session, payload, document_id, tenant_id)
 
-    async def _increment_node_counters(self, session, payload: dict, document_id: str, tenant_id: str):
+    async def _increment_node_counters(self, session, payload: dict, document_id: str, tenant_id: str) -> None:
         update_stmt = update(DocumentJob).where(
             DocumentJob.document_id == document_id,
-            DocumentJob.tenant_id == tenant_id
+            DocumentJob.tenant_id == tenant_id,
         )
-        
+
         if payload.get("sql_node_completed"):
             update_stmt = update_stmt.values(sql_nodes_completed=DocumentJob.sql_nodes_completed + 1)
         if payload.get("graph_node_completed"):
             update_stmt = update_stmt.values(graph_nodes_completed=DocumentJob.graph_nodes_completed + 1)
-            
+
         update_stmt = update_stmt.returning(
-            DocumentJob.sql_nodes_total, DocumentJob.sql_nodes_completed,
-            DocumentJob.graph_nodes_total, DocumentJob.graph_nodes_completed
+            DocumentJob.sql_nodes_total,
+            DocumentJob.sql_nodes_completed,
+            DocumentJob.graph_nodes_total,
+            DocumentJob.graph_nodes_completed,
         )
-        
+
         result = await session.execute(update_stmt)
         row = result.fetchone()
 
@@ -135,52 +114,67 @@ class StatusConsumer:
                 tenant_id,
             )
             return
-        
+
         if row:
             sql_t, sql_c, grp_t, grp_c = row
             is_complete = (sql_c >= sql_t and grp_c >= grp_t) and (sql_t > 0 or grp_t > 0)
-            
+
             if is_complete:
                 new_status = "COMPLETED"
                 new_stage = "Completed"
             else:
                 new_status = "IN_PROGRESS"
                 new_stage = f"Ingesting (SQL: {sql_c}/{sql_t}, Graph: {grp_c}/{grp_t})"
-                
+
             await session.execute(
                 update(DocumentJob)
                 .where(DocumentJob.document_id == document_id)
                 .values(status=new_status, current_stage=new_stage)
             )
             logger.info(
-                "Incremented node counters", document_id=document_id,
-                sql_completed=sql_c, sql_total=sql_t,
-                graph_completed=grp_c, graph_total=grp_t, status=new_status
+                "Incremented node counters",
+                document_id=document_id,
+                sql_completed=sql_c,
+                sql_total=sql_t,
+                graph_completed=grp_c,
+                graph_total=grp_t,
+                status=new_status,
             )
 
-    async def _upsert_document_job(self, session, payload: dict, document_id: str, tenant_id: str):
+    async def _upsert_document_job(self, session, payload: dict, document_id: str, tenant_id: str) -> None:
         status = payload.get("status", "UNKNOWN")
         sql_nodes_total = payload.get("sql_nodes_total")
         graph_nodes_total = payload.get("graph_nodes_total")
-        
+
         current_stage = payload.get("current_stage", "unknown")
         if status == "IN_PROGRESS" and (sql_nodes_total or graph_nodes_total):
             current_stage = f"Ingesting (SQL: 0/{sql_nodes_total or 0}, Graph: 0/{graph_nodes_total or 0})"
-            
+
         insert_values = {
             "document_id": document_id,
             "tenant_id": tenant_id,
             "filename": payload.get("filename") or "unknown",
             "current_stage": current_stage,
             "status": status,
-            "error_message": payload.get("error_message")
+            "error_message": payload.get("error_message"),
         }
-        
-        optional_fields = ["s3_uri", "file_hash", "sql_mapped", "vector_mapped", "graph_mapped", "sql_nodes_total", "graph_nodes_total", "company_name", "ticker", "fiscal_period"]
+
+        optional_fields = [
+            "s3_uri",
+            "file_hash",
+            "sql_mapped",
+            "vector_mapped",
+            "graph_mapped",
+            "sql_nodes_total",
+            "graph_nodes_total",
+            "company_name",
+            "ticker",
+            "fiscal_period",
+        ]
         for field in optional_fields:
             if payload.get(field) is not None:
                 insert_values[field] = payload.get(field)
-                
+
         stmt = insert(DocumentJob).values(**insert_values)
 
         incoming_filename = insert_values.get("filename") or "unknown"
@@ -198,11 +192,8 @@ class StatusConsumer:
             update_set["s3_uri"] = stmt.excluded.s3_uri
         if insert_values.get("file_hash"):
             update_set["file_hash"] = stmt.excluded.file_hash
-        
-        do_update_stmt = stmt.on_conflict_do_update(
-            index_elements=['document_id'],
-            set_=update_set
-        )
-        
+
+        do_update_stmt = stmt.on_conflict_do_update(index_elements=["document_id"], set_=update_set)
+
         await session.execute(do_update_stmt)
         logger.info("UPSERT DocumentJob status", document_id=document_id, tenant_id=tenant_id, status=status)
