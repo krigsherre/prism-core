@@ -42,12 +42,14 @@ def fetch_cube_schema() -> str:
         return "Failed to fetch schema due to network error."
 
 def inject_tenant_id_sql(sql: str, tenant_id: str) -> str:
-    """Uses AST parsing to securely inject WHERE tenant_id = '...'."""
+    """Uses AST parsing to securely inject WHERE tenant_id = '...' into all select nodes."""
     try:
         parsed = sqlglot.parse_one(sql)
         condition = f"tenant_id = '{tenant_id}'"
-        secure_sql = parsed.where(condition).sql()
-        return secure_sql
+        # Transform all Select nodes in the expression tree
+        for select in parsed.find_all(exp.Select):
+            select.where(condition, copy=False)
+        return parsed.sql()
     except Exception as e:
         logger.error("AST Parsing failed", sql=sql, error=str(e))
         if "WHERE" in sql.upper():

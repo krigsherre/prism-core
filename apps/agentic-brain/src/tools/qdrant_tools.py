@@ -22,7 +22,6 @@ async def query_vector_db(query: str, tenant_id: str, document_id: str = None) -
             embed_endpoint = f"{embed_endpoint}/embed"
 
         async with httpx.AsyncClient(timeout=10.0) as client:
-            # BGE models require a specific instruction prefix for search queries
             bge_query = f"Represent this sentence for searching relevant passages: {query[:1900]}"
             response = await client.post(
                 embed_endpoint,
@@ -42,7 +41,6 @@ async def query_vector_db(query: str, tenant_id: str, document_id: str = None) -
         if document_id:
             must_conditions.append(models.FieldCondition(key="document_id", match=models.MatchValue(value=document_id)))
 
-        # qdrant-client >=1.12: AsyncQdrantClient.search was removed; use query_points
         search_result = await qdrant_client.query_points(
             collection_name=collection,
             query=vector,
@@ -55,12 +53,10 @@ async def query_vector_db(query: str, tenant_id: str, document_id: str = None) -
         if not points:
             return "No relevant documents found."
             
-        # Reranking using TEI bge-reranker-base
         try:
             texts_to_rerank = []
             for point in points:
                 payload = getattr(point, "payload", None) or {}
-                # Use parent_section_text for broader context if available
                 text_content = payload.get("parent_section_text", payload.get("content", payload.get("text", "")))
                 texts_to_rerank.append(text_content)
                 
@@ -78,8 +74,6 @@ async def query_vector_db(query: str, tenant_id: str, document_id: str = None) -
                 )
                 if rerank_resp.status_code == 200:
                     rerank_data = rerank_resp.json()
-                    # TEI returns a list of dicts with 'index' and 'score'
-                    # e.g., [{"index": 5, "score": 0.99}, ...]
                     top_indices = [item["index"] for item in rerank_data[:5]]
                     best_points = [points[idx] for idx in top_indices]
                 else:
@@ -92,7 +86,6 @@ async def query_vector_db(query: str, tenant_id: str, document_id: str = None) -
         results = []
         for point in best_points:
             payload = getattr(point, "payload", None) or {}
-            # Return the full context for better Synthesis
             results.append({
                 "text": payload.get("parent_section_text", payload.get("content", payload.get("text", ""))),
                 "source_page": payload.get("source_page", 1),

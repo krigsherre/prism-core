@@ -24,9 +24,9 @@ def inject_tenant_id_cypher(cypher: str, tenant_id: str) -> str:
     )
     node_re = re.compile(
         r"\(("
-        r"[a-zA-Z_][a-zA-Z0-9_]*"  # variable
-        r"(?::[a-zA-Z_][a-zA-Z0-9_]*)?"  # optional label
-        r"(?:\s*\{[^}]*\})?"  # optional map
+        r"[a-zA-Z_][a-zA-Z0-9_]*"
+        r"(?::[a-zA-Z_][a-zA-Z0-9_]*)?" 
+        r"(?:\s*\{[^}]*\})?" 
         r")\)"
     )
 
