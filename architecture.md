@@ -1,14 +1,25 @@
-# Prism Core — System Architecture
+<p align="center">
+  <img src="apps/web-dashboard/app/icon.png" alt="Prism Core" width="72" />
+</p>
 
-How Prism Core turns messy business documents into structured data you can query — and what happens when the model is wrong.
+<h1 align="center">Prism Core — System Architecture</h1>
 
-If you only read one architecture document in this repo, make it this one. Cross-cutting ADRs live in [`decisions.md`](decisions.md); the overarching project pitch and quickstart are in [`README.md`](README.md); research papers studied are in [`research.md`](research.md).
+<p align="center">
+  How Prism Core turns messy business documents into structured data you can query — and what happens when the model is wrong.
+</p>
+
+<p align="center">
+  <a href="README.md">🏠 README</a> ·
+  <a href="decisions.md">🗂 ADRs</a> ·
+  <a href="research.md">📚 Research</a> ·
+  <a href="infra/README.md">🔧 Infra</a>
+</p>
 
 ---
 
-## What I’m Solving
+## 🎯 The Problem
 
-Most “document AI” demos do this:
+Most "document AI" demos do this:
 
 ```mermaid
 flowchart LR
@@ -17,42 +28,38 @@ flowchart LR
 
 That falls apart on real financial PDFs: columns get read in the wrong order, tables shift indexes, numbers look fine as JSON but break basic accounting, and if you write Postgres + Neo4j + Qdrant in one shot you get split-brain when one store dies.
 
-I scoped the problem more narrowly:
-
-> Extract trustworthy rows from messy business docs, refuse to promote junk, and let an analyst ask questions against what actually landed.
-
-Not “chat with any PDF on earth.” Finance-ish documents first (SEC 10-K, Indian Annual Reports / Ind AS, invoices, receipts). Depth over coverage.
+> **Prism Core's scope:** Extract trustworthy rows from messy business docs, refuse to promote junk, and let an analyst ask questions against what actually landed. Depth over coverage.
 
 ---
 
-## The Bet
+## 💡 The Bet
 
-Accuracy isn’t one clever prompt. It’s a multi-stage verification pipeline. Each stage kills a specific failure mode, then I query the structured result — not the raw pixels.
+Accuracy isn't one clever prompt. It's a multi-stage verification pipeline. Each stage kills a specific failure mode, then queries the structured result — not the raw pixels.
 
 ```mermaid
 flowchart LR
-    P1[Document] --> P2{Router: iXBRL vs Visual?}
-    P2 -->|iXBRL / XML| P2A[Deterministic Fast-Path]
-    P2 -->|PDF / Image| P3[Layout + reading order]
-    P3 --> P3A[Cheap vs GPU extract]
-    P2A --> P4[Schema-aligned rows]
+    P1[Document] --> P2{Router:\niXBRL vs Visual?}
+    P2 -->|iXBRL / XML| P2A[Deterministic\nFast-Path]
+    P2 -->|PDF / Image| P3[Layout +\nReading Order]
+    P3 --> P3A[Cheap vs GPU\nExtract]
+    P2A --> P4[Schema-Aligned\nRows]
     P3A --> P4
-    P4 --> P5[Accounting checks]
+    P4 --> P5[Accounting\nCritics Gate]
     P5 --> P6{OK?}
     P6 -->|yes| P7[Write + CDC Sync]
-    P6 -->|no| P8[Reflexion Retry $\rightarrow$ HITL]
-    P7 --> P9[SQL / Graph / Hybrid RAG]
+    P6 -->|no| P8[Reflexion Retry → HITL]
+    P7 --> P9[SQL / Graph / Vector RAG]
 ```
 
 ---
 
-## High-Level Topology
+## 🗺 High-Level Topology
 
 ```mermaid
 flowchart TB
-    Analyst((Analyst / Operator))
+    Analyst((Analyst /\nOperator))
 
-    subgraph Prism Core Platform
+    subgraph Platform["Prism Core Platform"]
         UI[Web Dashboard :3000]
         Pipe[Kafka Pipeline]
         Brain[Agentic Brain :8001]
@@ -62,7 +69,7 @@ flowchart TB
 
     S3[(S3 / MinIO)]
     GPU_ML[Layout + vLLM]
-    TEI[HuggingFace TEI Embeddings :8085 & Reranker :8086]
+    TEI[HuggingFace TEI\nEmbeddings :8085 & Reranker :8086]
     Obs[Grafana / Loki / Tempo]
 
     Analyst --> UI
@@ -77,17 +84,7 @@ Work moves through Kafka. The UI watches the queue, handles real-time HITL revie
 
 ---
 
-## How the Boxes Fit Together
-
-I split the work on purpose to leverage the distinct strengths of two very different ecosystems: Go and Python.
-
-**Go (Ingress & Triage)**
-Go handles the high-throughput, IO-bound edge of the system. Its concurrency model (goroutines) and low memory footprint make it perfect for streaming massive multi-gigabyte uploads without buffering to RAM (in `api-gateway`) and managing thousands of concurrent connections (in `triage-worker`). It easily absorbs IO storms that would choke a standard Python web server.
-
-**Python (Vision, Alignment & Agents)**
-Python owns the compute-heavy, AI-driven core: PyMuPDF for fast layout extraction, PyTorch/vLLM for running RT-DETR and large language models on GPUs, Instructor for structured JSON extraction, and LangGraph for complex agentic workflows. Python operates off Kafka or internal gRPC/HTTP endpoints away from direct multi-gigabyte web edges.
-
-Chat is its own isolated service so a GPU OOM on the extraction side doesn’t take down Q&A.
+## 🔲 Microservices Map
 
 ```mermaid
 flowchart TB
@@ -143,27 +140,28 @@ flowchart TB
     Brain --> R
 ```
 
-### Microservices at a Glance
+### Service Roles
 
-| Service | Role | Tech Stack |
-|---------|------|------------|
-| `api-gateway` | Zero-copy upload stream to S3 + publish `IngestEvent` | Go 1.25 |
-| `sqs-kafka-bridge` | Bridge AWS SQS / ElasticMQ bucket notifications to Kafka | Go 1.25 |
-| `s3-connector` | Consume S3 discovery events $\rightarrow$ dedupe $\rightarrow$ queue gateway upload | Go 1.25 |
-| `triage-worker` | Exact-hash dedupe via Redis + versioning route / DLQ | Go 1.25 |
-| `gpu-extractor` | Layout box detection + Y-clustering reading order + VLM OCR $\rightarrow$ `DocumentDOM` | Python (PyMuPDF, vLLM, RT-DETR) |
-| `schema-aligner` | iXBRL fast-path parser + Instructor alignment + accounting critics + Reflexion | Python (Pydantic, Instructor) |
-| `storage-sync` | Bifurcation engine, Postgres JSONB upserts, Qdrant vectors, Neo4j `UNWIND` batching | Python (Alembic, Qdrant, Neo4j) |
-| `agentic-brain` | LangGraph tri-modal chat (SQL + Cypher + Vector) + fast-path router + `/task` agents | Python (LangGraph, TEI, FastAPI) |
-| `web-dashboard` | Operator UI (queue, real-time SSE HITL cards, multi-modal chat, agent list) | Next.js 14, React, Tailwind |
+| Service | Language | Role |
+|---|---|---|
+| `api-gateway` | Go | Zero-copy upload stream to S3 + publish `IngestEvent` |
+| `sqs-kafka-bridge` | Go | Bridge AWS SQS / ElasticMQ bucket notifications to Kafka |
+| `s3-connector` | Go | S3 discovery events → dedupe → queue gateway upload |
+| `triage-worker` | Go | Exact-hash dedupe via Redis + versioning route / DLQ |
+| `gpu-extractor` | Python | Layout box detection + Y-clustering + VLM OCR → `DocumentDOM` |
+| `schema-aligner` | Python | iXBRL fast-path + Instructor alignment + accounting critics + Reflexion |
+| `storage-sync` | Python | Bifurcation engine, Postgres JSONB upserts, Qdrant vectors, Neo4j `UNWIND` |
+| `agentic-brain` | Python | LangGraph tri-modal RAG (SQL + Cypher + Vector) + `/task` agent runner |
+| `web-dashboard` | TypeScript | Operator UI — queue, real-time HITL cards, chat, agent list |
 
 ---
 
-## Detailed Pipeline Architecture
+## 🔬 Detailed Pipeline Stages
 
-### 1. Dual Ingestion Engine: iXBRL Fast-Path vs Visual Extraction
+<details>
+<summary><strong>Stage 1 — Dual Ingestion: iXBRL Fast-Path vs Visual VLM</strong></summary>
 
-When a document enters `schema-aligner`, the `doc_router` determines if the file is a structured digital filing (e.g. SEC iXBRL HTML or Indian MCA/BSE XBRL XML) or a visual document (PDF/Image).
+When a document enters `schema-aligner`, the `doc_router` determines if the file is a structured digital filing (SEC iXBRL HTML or Indian MCA/BSE XBRL XML) or a visual document (PDF/Image).
 
 ```mermaid
 flowchart TB
@@ -182,14 +180,22 @@ flowchart TB
     StructAlign --> Critics
 ```
 
-- **iXBRL Fast-Path (`ixbrl_parser.py`, `mca_xbrl_parser.py`)**: Bypasses heavy VLM rendering entirely, parsing embedded XBRL taxonomy tags with near 100% precision.
-- **Visual VLM Path (`gpu-extractor`)**: Uses RT-DETR / Docling layout box detection, applies 1D Y-clustering ($\varepsilon \approx 15\text{px}$) to fix multi-column reading order, routes text regions to PyMuPDF and tables to heavy VLMs.
+- **iXBRL Fast-Path** (`ixbrl_parser.py`, `mca_xbrl_parser.py`) — bypasses VLM rendering, parses XBRL taxonomy tags with near 100% precision.
+- **Visual VLM Path** (`gpu-extractor`) — RT-DETR layout box detection, 1D Y-clustering (ε ≈ 15px) for multi-column reading order, PyMuPDF for text and VLMs for tables.
 
----
+</details>
 
-### 2. Accounting Critics & Bounded Reflexion Repair
+<details>
+<summary><strong>Stage 2 — Accounting Critics & Bounded Reflexion Repair</strong></summary>
 
-Before any extracted row is promoted to Postgres, it must pass declarative accounting critics ($\text{Assets} = \text{L} + \text{E}$, $\text{PAT} = \text{PBT} - \text{Tax}$, Cash Flow rollups, Bank running balance).
+Before any extracted row is promoted to Postgres, it must pass declarative accounting critics.
+
+| Rule | Equation |
+|---|---|
+| Balance Sheet | Assets = Liabilities + Equity |
+| Income Statement | PAT = PBT − Tax |
+| Cash Flow | Rollup reconciliation |
+| Bank Statement | Running balance check |
 
 ```mermaid
 sequenceDiagram
@@ -204,7 +210,7 @@ sequenceDiagram
         A->>K: Publish mapped_rows
     else Critic Violation (Fixable)
         loop Max 3 Reflexion Retries
-            A->>A: Append critic error message to prompt context
+            A->>A: Append critic error to prompt context
             A->>A: Re-generate structured JSON
             A->>C: Re-validate
         end
@@ -222,13 +228,12 @@ sequenceDiagram
     end
 ```
 
-If critic checks fail, a bounded **Reflexion loop** injects the exact equation error back into the prompt context for auto-repair. If retries expire or fail terminally, the row is routed to **HITL** for human review in the Web Dashboard.
+</details>
 
----
+<details>
+<summary><strong>Stage 3 — Storage Sync & Graph UNWIND Batching</strong></summary>
 
-### 3. Storage Synchronization & Graph `UNWIND` Batching
-
-Aligned rows land in Postgres with an idempotent key: `(document_id, node_id, row_index)` on conflict upsert. Prose nodes are converted into dense vector embeddings via the local TEI sidecar (`:8085`) and written to Qdrant.
+Aligned rows land in Postgres with idempotent key `(document_id, node_id, row_index)`. Prose nodes become dense vector embeddings via the local TEI sidecar (`:8085`) written to Qdrant.
 
 ```mermaid
 flowchart TB
@@ -246,18 +251,19 @@ flowchart TB
     VectorEmb --> Qdrant[(Qdrant Vector Database)]
 ```
 
-- **Graph Ingestion Optimization**: `storage-sync` pre-filters text nodes for financial domain entities before dispatching triples. Entities are ingested into Neo4j in single-transaction `UNWIND` Cypher batches, eliminating graph lock contention during high-concurrency ingestion.
+`storage-sync` pre-filters text nodes for financial domain entities before dispatching graph triples. Entities are ingested in single-transaction `UNWIND` Cypher batches, eliminating graph lock contention.
 
----
+</details>
 
-### 4. Agentic Brain & Zero-Latency Chat Fast-Paths
+<details>
+<summary><strong>Stage 4 — Agentic Brain & Zero-Latency Fast-Paths</strong></summary>
 
-The `agentic-brain` orchestrates Q&A via a LangGraph state machine. It uses local TEI neural microservices (`bge-small-en-v1.5` for embeddings and `bge-reranker-base` for cross-encoder reranking).
+The `agentic-brain` orchestrates Q&A via a LangGraph state machine with parallel tri-modal fan-out.
 
 ```mermaid
 flowchart TB
     Query[User Chat Query] --> FastPath{Fast-Path Router}
-    FastPath -->|Greeting / Meta / Trivial| Sub1ms[<1ms Direct Fast-Path Answer]
+    FastPath -->|Greeting / Meta / Trivial| Sub1ms[<1ms Direct Answer]
     FastPath -->|Analytical Question| LangGraph[LangGraph State Engine]
 
     LangGraph --> ParallelFanOut{Parallel Execution}
@@ -270,17 +276,17 @@ flowchart TB
 
     SQL --> Synthesis[Response Synthesizer]
     Cypher --> Synthesis
-    Synthesis --> FinalResp[Final Answer with Citations]
+    Synthesis --> FinalResp[Final Answer + Citations]
 ```
 
-- **Zero-Latency Fast-Paths**: Non-analytical or conversational queries trigger a sub-$1\text{ms}$ sub-agent response, skipping costly database fan-out.
-- **Tri-Modal Fan-Out**: Analytical queries run SQL, Cypher graph traversal, and hybrid vector search concurrently with tenant ID isolation enforced at the tool wrapper level.
+- **Zero-Latency Fast-Paths** — non-analytical queries skip costly database fan-out entirely, answering in <1ms.
+- **Tri-Modal Fan-Out** — SQL, Cypher graph traversal, and hybrid vector search run concurrently with tenant ID isolation enforced at the tool wrapper level.
+
+</details>
 
 ---
 
-## Data Plane & Schema
-
-Shared Protobuf contracts (`IngestEvent`, `DocumentDOM`) decouple Go ingress from Python ML workers.
+## 🗄 Data Schema
 
 ```mermaid
 erDiagram
@@ -297,14 +303,12 @@ erDiagram
     }
 ```
 
-- `strict_columns` stores validated, clean row data.
-- `unmapped_jsonb` holds schema drift, critic failure logs, and reflexion attempts displayed in the HITL card UI.
+- `strict_columns` — validated, clean row data.
+- `unmapped_jsonb` — schema drift, critic failure logs, and reflexion attempts surfaced in the HITL card UI.
 
 ---
 
-## Observability & Telemetry
-
-OpenTelemetry context is propagated across Kafka message headers. Every log entry includes `trace_id` and `span_id` formatted for Loki and Tempo integration in Grafana.
+## 📡 Observability
 
 ```mermaid
 flowchart LR
@@ -316,35 +320,36 @@ flowchart LR
     Tempo --> Grafana
 ```
 
+OTel context propagated through Kafka message headers end-to-end across Go and Python microservices.
+
 ---
 
-## Horizontal Scalability & Distributed Architecture
+## 📈 Horizontal Scalability
 
-Prism Core is designed as a stateless, distributed system capable of scaling out horizontally under heavy firehose loads without architectural bottlenecks:
+<details>
+<summary><strong>Scaling architecture diagram</strong></summary>
 
 ```mermaid
 flowchart TB
     Client((Ingest Firehose)) --> LB[L7 Load Balancer]
 
-    subgraph Edge Layer
-        GW1[api-gateway :8080 - Replica 1]
-        GW2[api-gateway :8080 - Replica 2]
+    subgraph Edge["Edge Layer"]
+        GW1[api-gateway Replica 1]
+        GW2[api-gateway Replica 2]
         LB --> GW1
         LB --> GW2
     end
 
-    GW1 --> S3[(S3 / MinIO Store)]
+    GW1 --> S3[(S3 / MinIO)]
     GW2 --> S3
-
     GW1 --> Kafka[(Kafka Partitioned Topics)]
     GW2 --> Kafka
 
-    subgraph Scalable Worker Replicas
-        direction TB
-        Ext1[gpu-extractor - Replica 1]
-        Ext2[gpu-extractor - Replica 2]
-        Align1[schema-aligner - Replica 1]
-        Align2[schema-aligner - Replica 2]
+    subgraph Workers["Scalable Worker Replicas"]
+        Ext1[gpu-extractor Replica 1]
+        Ext2[gpu-extractor Replica 2]
+        Align1[schema-aligner Replica 1]
+        Align2[schema-aligner Replica 2]
     end
 
     Kafka -->|Partition Key: doc_id| Ext1
@@ -352,39 +357,31 @@ flowchart TB
     Kafka -->|Partition Key: doc_id| Align1
     Kafka -->|Partition Key: doc_id| Align2
 
-    subgraph Centralized GPU / Neural Sidecars
-        vLLM[vLLM Inference Server :8004]
+    subgraph Sidecars["Centralized GPU / Neural Sidecars"]
+        vLLM[vLLM :8004]
         TEI_Emb[TEI Embeddings :8085]
         TEI_Re[TEI Reranker :8086]
     end
 
-    Ext1 -->|Async HTTP| vLLM
-    Ext2 -->|Async HTTP| vLLM
-    Align1 -->|Async HTTP| vLLM
-    Align2 -->|Async HTTP| vLLM
-
-    subgraph Database Layer
-        PG[(Postgres Cluster)]
-        Neo4j[(Neo4j Graph Cluster)]
-        Qdrant[(Qdrant Vector Cluster)]
-    end
-
-    Align1 -->|Idempotent ON CONFLICT| PG
-    Align2 -->|Idempotent ON CONFLICT| PG
-    Align1 -->|UNWIND Batches| Neo4j
-    Align2 -->|UNWIND Batches| Neo4j
+    Ext1 --> vLLM
+    Ext2 --> vLLM
+    Align1 --> vLLM
+    Align2 --> vLLM
 ```
 
-### Key Scaling Mechanics:
-1. **Stateless Ingress Scaling**: `api-gateway` streams multipart uploads directly to S3 with zero memory buffering (`mime/multipart.Reader`). N replicas sit behind an L7 load balancer with zero shared state.
-2. **Kafka Consumer Group Scaling**: All compute-heavy Go and Python services (`triage-worker`, `gpu-extractor`, `schema-aligner`, `storage-sync`) operate as consumer groups. Worker capacity scales linearly by increasing Kafka topic partitions (`docker-compose up --scale gpu-extractor=4 --scale schema-aligner=8`).
-3. **Decoupled Centralized Model Sidecars**: Heavy model weights (vLLM, PaddleOCR-VL, TEI) run in centralized microservices (`:8004`, `:8085`, `:8086`). Workers scale on cheap CPU compute nodes while GPU instances scale independently behind `asyncio.Semaphore` rate limiters.
-4. **Stateless Worker Task Claiming (`SKIP LOCKED`)**: Background task workers in `agentic-brain` claim jobs directly from Postgres via `SELECT ... FOR UPDATE SKIP LOCKED`. Multiple replicas claim tasks concurrently without lock contention or distributed Redis lock overhead.
-5. **Idempotent Partition Re-Balancing**: All Postgres writes use composite natural keys `(document_id, node_id, row_index)` on conflict upserts, and Qdrant uses deterministic UUIDv5 generated from `(document_id, node_id)`. Re-balances or consumer retries never create duplicate rows or vector drift.
+</details>
+
+| Mechanic | How |
+|---|---|
+| Stateless Edge Streaming | `api-gateway` streams directly to S3, zero memory buffering |
+| Kafka Consumer Group Scaling | `docker-compose up --scale gpu-extractor=4 --scale schema-aligner=8` |
+| Decoupled Model Sidecars | Workers scale on CPU nodes; GPU inference scales independently |
+| Stateless Task Claiming | `FOR UPDATE SKIP LOCKED` — no Redis locks needed |
+| Idempotent Re-Balancing | Composite natural keys `(document_id, node_id, row_index)` + UUIDv5 |
 
 ---
 
-## Summary Diagram
+## 🔚 End-to-End Summary
 
 ```mermaid
 flowchart TB

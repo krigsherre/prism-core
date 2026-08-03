@@ -1,185 +1,287 @@
-# Prism Core
+<p align="center">
+  <img src="apps/web-dashboard/app/icon.png" alt="Prism Core" width="100" />
+</p>
 
-Prism Core turns messy, unstructured business documents (SEC 10-K filings, Indian Annual Reports, vendor invoices, bank exports) into structured, mathematically validated data you can query — featuring layout-aware extraction, declarative accounting critics, real-time HITL escalation, and tri-modal agentic RAG over Postgres, Neo4j, and Qdrant.
+<h1 align="center">Prism Core</h1>
 
-**Architecture:** [`architecture.md`](architecture.md) · **Umbrella ADRs:** [`decisions.md`](decisions.md) · **Research Papers:** [`research.md`](research.md)
+<p align="center">
+  <strong>Agentic document intelligence platform — layout-aware extraction, declarative accounting critics, real-time HITL review, and tri-modal RAG.</strong>
+</p>
 
----
+<p align="center">
+  <img src="https://img.shields.io/badge/Python-3.10–3.12-3776AB?style=flat-square&logo=python&logoColor=white" />
+  <img src="https://img.shields.io/badge/Go-1.25+-00ADD8?style=flat-square&logo=go&logoColor=white" />
+  <img src="https://img.shields.io/badge/Next.js-14-000000?style=flat-square&logo=nextdotjs&logoColor=white" />
+  <img src="https://img.shields.io/badge/LangGraph-Agentic_RAG-4B8BBE?style=flat-square" />
+  <img src="https://img.shields.io/badge/Kafka-Event_Backbone-231F20?style=flat-square&logo=apachekafka&logoColor=white" />
+  <img src="https://img.shields.io/badge/Postgres_·_Neo4j_·_Qdrant-Tri--Modal-4169E1?style=flat-square" />
+  <img src="https://img.shields.io/badge/Docker_Compose-One_Command_Up-2496ED?style=flat-square&logo=docker&logoColor=white" />
+</p>
 
-## Documentation Map
-
-| Document | Purpose |
-|----------|---------|
-| [`README.md`](README.md) | Primary project showcase, quickstart, testing guide, and feature matrix |
-| [`architecture.md`](architecture.md) | System architecture, sequence diagrams, microservices map, and pipeline mechanics |
-| [`decisions.md`](decisions.md) | Cross-cutting Architecture Decision Records (ADRs) |
-| [`research.md`](research.md) | Academic papers and industry implementations mapped to design choices |
-| `apps/*/README.md` + `decision.md` | Microservice-specific runbooks and local ADRs |
-| [`infra/README.md`](infra/README.md) | Sidecars (ElasticMQ, S3Mock, Cube, CDC, OTel observability stack) |
-| [`packages/contracts/README.md`](packages/contracts/README.md) | Shared Protobuf contracts & Buf codegen |
-
----
-
-## The Vision: Structured Data You Can Defend
-
-Most document AI demos upload a PDF, call a monolithic vision model, stash raw JSON, and provide a generic chat box. That approach fails on real business filings: columns quietly shift, numbers break accounting rules, and models guess when they should escalate.
-
-Prism Core defines success as **structured data you can defend — and an explicit path when you can’t**:
-
-- **In scope:** Zero-copy upload streaming, dual-path ingestion (iXBRL fast-path vs. visual layout VLM), schema alignment with declarative accounting critics ($\text{Assets} = \text{L} + \text{E}$, $\text{PAT} = \text{PBT} - \text{Tax}$), multi-store sync (Postgres, Neo4j, Qdrant), real-time HITL operator escalation, and tri-modal agentic RAG.
-- **Out of scope (on purpose):** Generic chat with every document on Earth. Prism Core focuses deeply on complex financial statements, annual reports, invoices, and receipts.
+<p align="center">
+  <a href="architecture.md">📐 Architecture</a> ·
+  <a href="decisions.md">🗂 ADRs</a> ·
+  <a href="research.md">📚 Research</a> ·
+  <a href="infra/README.md">🔧 Infra</a> ·
+  <a href="packages/contracts/README.md">📦 Contracts</a>
+</p>
 
 ---
 
-## High-Level Pipeline
-
-```text
-Upload Stream → Kafka → triage (dedupe) → Router (iXBRL fast-path vs. GPU layout extract)
-                     → split tables vs text → align to schema → accounting critics gate
-                     → Postgres (and eventual sync to Neo4j graph + Qdrant vectors)
-                     → Agentic Brain (tri-modal SQL | Cypher | Vector RAG)
-```
-
-When accounting critics fail, a bounded **Reflexion loop** feeds the exact validation error back to the model context for auto-repair. If retries expire or fail terminally, the record is pushed in real time via SSE to the **HITL Reviewer** in the Web Dashboard.
-
----
-
-## Deep Technical Highlights
-
-1. **Dual Ingestion Engine & Fast-Path Parsing**:
-   - Fast-path SEC EDGAR iXBRL HTML tag parser (`ixbrl_parser.py`) and Indian MCA / BSE XBRL XML parser (`mca_xbrl_parser.py`) bypass VLM extraction for structured digital filings with near 100% precision.
-2. **Reading Order & Layout Clustering**:
-   - Multi-column pages are clustered along the 1D Y-axis ($\varepsilon \approx 15\text{px}$) and sorted by X-coordinates before passing to LLMs/VLMs, preventing text mashing across columns.
-3. **Element-Level Routing**:
-   - Text boxes use PyMuPDF; only hard visual regions/tables hit VLMs. GPU extraction work is batched dynamically.
-4. **Row Chunks over Giant Columnar Arrays**:
-   - Extracts tables in small row chunks rather than monolithic arrays, eliminating column index-shift corruption.
-5. **SEC 10-K & Ind AS Multi-Jurisdiction Engine**:
-   - Native dual support for **SEC 10-K (US-GAAP)** and **Indian Annual Reports (Ind AS / Schedule III)** with automated jurisdiction detection.
-6. **Scale Exclusion Protection & Indian Numerics**:
-   - Field-level scale exclusion for per-share metrics (Basic/Diluted EPS) and share counts; native support for Crores ($10^7$), Lakhs ($10^5$), and Indian 2-digit comma grouping (`1,00,00,000`).
-7. **Cross-Page Table Stitching & Multi-Period Unpivoting**:
-   - Automatic continuation of split tables across page boundaries (`table_stitcher.py`) and comparative multi-period unpivoting (`2024`, `2023`, `2022`).
-8. **Declarative Accounting Critics & Fail-Closed Safety**:
-   - Hard mathematical verification ($\text{Assets} = \text{L} + \text{E}$, Cash Flow rollups, Bank running balance). Syntactically valid JSON that violates accounting rules fails closed and escalates to HITL.
-9. **HITL Safety Net as a Product Feature**:
-   - Non-standard schedules never block the ingest queue. Operators can click **"Approve as Generic Table"** or **"Divert to RAG"** directly in the Web Dashboard.
-10. **CDC & Kafka Decoupling**:
-    - Idempotent upserts `(document_id, node_id, row_index)` to Postgres first; vector embeddings and graph triples catch up asynchronously via Kafka/CDC.
-11. **Autonomous AI Employee Agents**:
-    - Specialized AI Employee roles (*Forensic Accounting Auditor*, *Regulatory Compliance Officer*, *Credit Risk Analyst*, *Research Assistant*) with self-verification audit critic nodes.
-12. **Domain-Agnostic Core Engine**:
-    - Extensible schema registry and tri-modal RAG engine adaptable to Healthcare, Legal, and Insurance domains by updating registry schemas and graph prompts.
-
----
-
-## Financial Domain Adaptation & Fine-Tuning Strategy
-
-Instead of relying solely on generic LLM fine-tuning (which risks memorizing numbers and hallucinating on unseen filings), Prism Core employs a **hybrid domain adaptation strategy**:
-
-1. **Fine-Tuned Layout & Vision Engine**: Uses PaddleOCR-VL and SmolDocling-256M fine-tuned specifically for financial table bounding boxes, multi-column reading order, and page header propagation.
-2. **Taxonomy & Schema Fine-Tuning**: Schema registry aligned with SEC US-GAAP and Indian Ind AS / Schedule III standards, supported by 110+ domain aliases (*PAT, PBT, Finance Costs, Other Equity, CWIP*).
-3. **Guided Decoding > Pure LLM Fine-Tuning**: Enforces strict Pydantic JSON schema constraints during LLM decoding, guaranteeing 100% mathematical structural precision on unseen filings.
-
----
-
-## Prerequisites
-
-- Docker + Docker Compose v2
-- Go **1.25+** (ingress / triage workers)
-- Python **3.10–3.12** + Poetry (ML / schema-aligner / storage-sync / agentic-brain)
-- Node **20+** (for `web-dashboard` local development)
-- GPU optional (recommended for `gpu-extractor` / local vLLM sidecars)
-
----
-
-## Quick Start
+## ⚡ Quick Start
 
 ```bash
-# 1. Clone & setup environment
+# 1. Clone & configure
 cp .env.example .env
 
-# 2. Start the full product stack
+# 2. Launch the full product stack
 make up
 ```
 
-Access the application surfaces:
-- **Web Dashboard**: http://localhost:3000
-- **API Gateway**: http://localhost:8080
-- **Agentic Brain API**: http://localhost:8001
+| Surface | URL |
+|---|---|
+| 🖥 Web Dashboard | http://localhost:3000 |
+| 🚪 API Gateway | http://localhost:8080 |
+| 🧠 Agentic Brain API | http://localhost:8001 |
 
 ---
 
-## Service Port Matrix
+## 🔭 The Vision
 
-| Surface / Service | Port | Description |
-|-------------------|------|-------------|
-| Web Dashboard | `3000` | Operator UI (queue, real-time HITL cards, multi-modal chat, agent list) |
-| API Gateway | `8080` | High-throughput Go ingress API (zero-copy upload streaming) |
-| Agentic Brain | `8001` | LangGraph chat API + deterministic `/task` agent runner |
-| TEI Embeddings Server | `8085` | Local HuggingFace Text Embeddings Inference (`bge-small-en-v1.5`) |
-| TEI Reranker Server | `8086` | Local HuggingFace Cross-Encoder Reranker (`bge-reranker-base`) |
-| Cube BI Engine | `4000` / `4001` | Semantic data model & REST/SQL API for analytical queries |
-| Postgres Database | `5432` | Primary relational store (`extracted_tables` JSONB + registry views) |
-| Kafka / Zookeeper | `9092` / `2181` | Async event backbone between microservices |
-| Redis | `6379` | Hash deduplication cache & triage retry state |
-| Neo4j Graph DB | `7474` (HTTP) / `7687` (Bolt) | Entity-relationship graph database |
-| Qdrant Vector DB | `6333` (HTTP) / `6334` (gRPC) | Dense vector search engine for prose chunks |
+Most document AI demos upload a PDF, call a monolithic vision model, stash raw JSON, and provide a generic chat box. That approach fails on real business filings: columns quietly shift, numbers break accounting rules, and models guess when they should escalate.
+
+Prism Core defines success as **structured data you can defend — and an explicit path when you can't**:
+
+- ✅ **In scope:** Zero-copy upload streaming, dual-path ingestion (iXBRL fast-path vs. visual layout VLM), schema alignment with declarative accounting critics, multi-store sync, real-time HITL escalation, and tri-modal agentic RAG.
+- 🚫 **Out of scope (on purpose):** Generic chat with every document on Earth. Prism Core focuses deeply on complex financial statements, annual reports, invoices, and receipts.
 
 ---
 
-## Development & Testing
+## 🏗 Pipeline
 
-Run unit and integration test suites across all microservices:
-
-```bash
-# Go Microservices
-cd apps/api-gateway && go test ./...
-cd apps/triage-worker && go test ./...
-cd apps/s3-connector && go test ./...
-cd apps/sqs-kafka-bridge && go test ./...
-
-# Python Microservices
-cd apps/schema-aligner && poetry run pytest
-cd apps/storage-sync && poetry run pytest
-cd apps/agentic-brain && poetry run pytest
-cd apps/gpu-extractor && poetry run pytest
-
-# Next.js Dashboard
-cd apps/web-dashboard && npm test -- --watchAll=false
+```mermaid
+flowchart LR
+    A[📄 Upload\nStream] --> B[Kafka]
+    B --> C{Triage\nDedupe}
+    C --> D[iXBRL\nFast-Path]
+    C --> E[GPU Layout\nExtract]
+    D --> F[Schema\nAligner]
+    E --> F
+    F --> G{Accounting\nCritics}
+    G -->|Pass| H[(Postgres\nNeo4j · Qdrant)]
+    G -->|Fail| I[Reflexion\nLoop]
+    I -->|Retry| F
+    I -->|Exhaust| J[🙋 HITL\nReviewer]
+    H --> K[🧠 Agentic Brain\nSQL · Cypher · Vector RAG]
+    K --> L[💬 Web Dashboard]
+    J --> L
 ```
 
-*Goldens directory*: `apps/schema-aligner/evals/golden/`.
+---
+
+## ✨ Feature Highlights
+
+<details>
+<summary><strong>🔀 Dual Ingestion Engine & Fast-Path Parsing</strong></summary>
+
+Fast-path iXBRL HTML tag parser and Indian MCA / BSE XBRL XML parser bypass VLM extraction for structured digital filings with near 100% precision. Only scanned / image-heavy documents fall through to the GPU visual extraction path.
+
+- `apps/schema-aligner/src/core/ixbrl_parser.py` — SEC EDGAR iXBRL
+- `apps/schema-aligner/src/core/mca_xbrl_parser.py` — Indian MCA / BSE XBRL
+
+</details>
+
+<details>
+<summary><strong>🧱 Layout-Aware Reading Order & Column Clustering</strong></summary>
+
+Multi-column pages are clustered along the 1D Y-axis (ε ≈ 15px) and sorted by X-coordinates before passing to LLMs/VLMs, preventing text mashing across columns. Text boxes use PyMuPDF; only hard visual table regions hit VLMs.
+
+</details>
+
+<details>
+<summary><strong>📐 Declarative Accounting Critics & Fail-Closed Safety</strong></summary>
+
+Hard mathematical verification gates every structured record before it lands in Postgres:
+
+| Rule | Formula |
+|---|---|
+| Balance Sheet | `Assets = Liabilities + Equity` |
+| Income Statement | `PAT = PBT − Tax` |
+| Cash Flow | Rollup reconciliation |
+| Bank Statement | Running balance check |
+
+Syntactically valid JSON that violates these rules **fails closed** and escalates — it never silently enters the database.
+
+</details>
+
+<details>
+<summary><strong>🔁 Reflexion Loop & Bounded Auto-Repair</strong></summary>
+
+When critics fail, a bounded Reflexion loop feeds the exact validation error back into the model's context for auto-repair. If retries expire or fail terminally, the record is escalated in real time via SSE to the HITL Reviewer.
+
+</details>
+
+<details>
+<summary><strong>🙋 Real-Time HITL as a Product Feature</strong></summary>
+
+Non-standard schedules never block the ingest queue. Operators see live escalation cards in the Web Dashboard and can:
+
+- **Approve** with corrected field values
+- **Approve as Generic Table** — persists to a `generic_tables` store
+- **Divert to RAG** — routes the node to Qdrant for semantic search instead
+
+</details>
+
+<details>
+<summary><strong>🌏 Multi-Jurisdiction Engine (US-GAAP + Ind AS)</strong></summary>
+
+Native dual support for **SEC 10-K (US-GAAP)** and **Indian Annual Reports (Ind AS / Schedule III)** with automated jurisdiction detection. Features:
+
+- 110+ domain aliases (*PAT, PBT, Finance Costs, Other Equity, CWIP*)
+- Scale exclusion protection for per-share metrics (EPS, share counts)
+- Native Crore (10⁷), Lakh (10⁵), and Indian 2-digit comma grouping (`1,00,00,000`)
+- Cross-page table stitching and multi-period unpivoting (`2024 / 2023 / 2022`)
+
+</details>
+
+<details>
+<summary><strong>🧠 Tri-Modal Agentic RAG</strong></summary>
+
+The Agentic Brain runs a LangGraph supervisor that routes queries across three modalities simultaneously:
+
+| Modality | Store | Best For |
+|---|---|---|
+| 🗄 SQL | Postgres (Cube Semantic Layer) | Structured financial KPIs, ratios, time-series |
+| 🕸 Cypher | Neo4j | Corporate relationship graphs, auditor networks, subsidiaries |
+| 🔍 Vector | Qdrant (bge-small-en-v1.5 + reranker) | Footnote disclosures, qualitative risk language |
+
+Four specialized **AI Employee** personas operate over the same tri-modal stack: *Forensic Accounting Auditor*, *Regulatory Compliance Officer*, *Credit Risk Analyst*, and *Financial Research Analyst*.
+
+</details>
+
+<details>
+<summary><strong>📡 CDC & Kafka Decoupling</strong></summary>
+
+Idempotent upserts `(document_id, node_id, row_index)` land in Postgres first. Vector embeddings and graph triples catch up asynchronously via Kafka/CDC — no blocking write fan-out in the hot ingest path.
+
+</details>
+
+<details>
+<summary><strong>🧬 Domain Adaptation Strategy (No Hallucination Fine-Tuning)</strong></summary>
+
+Instead of pure LLM fine-tuning (which risks memorizing numbers), Prism Core uses:
+
+1. **Fine-tuned Layout VLM** — SmolDocling-256M fine-tuned for financial table bounding boxes and multi-column reading order.
+2. **Taxonomy & Schema Fine-Tuning** — Registry aligned with US-GAAP and Ind AS / Schedule III.
+3. **Guided Decoding** — Strict Pydantic JSON schema constraints during LLM decoding, guaranteeing 100% structural precision on unseen filings.
+
+</details>
 
 ---
 
-## Repository Layout
+## 🗂 Repository Layout
+
+<details>
+<summary><strong>View full repo tree</strong></summary>
 
 ```text
 apps/
-  api-gateway/        Go zero-copy upload streaming edge server
-  sqs-kafka-bridge/   Go AWS SQS/ElasticMQ to Kafka bridge worker
-  s3-connector/       Go S3 bucket notification consumer & deduplicator
-  triage-worker/      Go Redis exact-hash deduplication worker
-  gpu-extractor/      Python layout detection (RT-DETR) & VLM extraction worker
-  schema-aligner/     Python Instructor alignment, iXBRL fast-paths, accounting critics
-  storage-sync/       Python bifurcation engine, Postgres upserts, Neo4j UNWIND, Qdrant
-  agentic-brain/      Python LangGraph tri-modal RAG chat & autonomous agent runner
-  web-dashboard/      Next.js 14 operator interface (chat, queue, HITL, agents)
-packages/contracts/   Protobuf schemas & Buf codegen (`IngestEvent`, `DocumentDOM`)
-infra/                Sidecar compose, Cube schemas, OTel / Grafana stack
-docker-compose.yml    Canonical product stack compose configuration
-Makefile              Task runner (`make up`, `make down`, `make test`)
-.env.example          Canonical environment variable template
+  api-gateway/        Go   — Zero-copy upload streaming edge server
+  sqs-kafka-bridge/   Go   — AWS SQS/ElasticMQ → Kafka bridge worker
+  s3-connector/       Go   — S3 bucket notification consumer & deduplicator
+  triage-worker/      Go   — Redis exact-hash deduplication worker
+  gpu-extractor/      Py   — RT-DETR layout detection & VLM extraction worker
+  schema-aligner/     Py   — Instructor alignment, iXBRL fast-paths, accounting critics
+  storage-sync/       Py   — Bifurcation engine, Postgres upserts, Neo4j UNWIND, Qdrant
+  agentic-brain/      Py   — LangGraph tri-modal RAG chat & autonomous agent runner
+  web-dashboard/      TS   — Next.js 14 operator interface (chat, queue, HITL, agents)
+packages/contracts/         Protobuf schemas & Buf codegen (IngestEvent, DocumentDOM)
+infra/                      Sidecar compose, Cube schemas, OTel / Grafana stack
+docker-compose.yml          Canonical product stack
+Makefile                    make up · make down · make test
+.env.example                Environment variable template
 ```
+
+</details>
 
 ---
 
-## Ops & Horizontal Scalability
+## 🔌 Service Port Reference
 
-- **Stateless Edge Streaming**: `api-gateway` streams uploads directly to object storage without memory buffering, enabling stateless horizontally scaled L7 load balancing.
-- **Kafka Partition-Keyed Worker Scaling**: Heavy extraction and alignment workers run as stateless consumer groups. Scale ingest capacity by adding Kafka topic partitions and worker container replicas (`docker-compose up --scale gpu-extractor=4 --scale schema-aligner=8`).
-- **Decoupled Centralized Model Sidecars**: vLLM and HuggingFace TEI microservices (`:8004`, `:8085`, `:8086`) run as shared sidecars. Worker containers scale on inexpensive CPU nodes without duplicating model VRAM weights.
-- **Stateless Task Claiming (`SKIP LOCKED`)**: Background agents in `agentic-brain` claim jobs directly from Postgres using `FOR UPDATE SKIP LOCKED`, allowing concurrent worker execution without Redis locks.
-- **OpenTelemetry Context Propagation**: OTel headers injected into Kafka message headers propagate trace context end-to-end across Go and Python microservices into Grafana (Loki/Tempo).
-- **Database Migrations**: Automated relational schema migrations managed via Alembic (`apps/storage-sync/alembic`).
+<details>
+<summary><strong>View all ports</strong></summary>
+
+| Service | Port | Description |
+|---|---|---|
+| Web Dashboard | `3000` | Operator UI — queue, HITL cards, tri-modal chat, agent list |
+| API Gateway | `8080` | Go ingress — zero-copy upload streaming |
+| Agentic Brain | `8001` | LangGraph chat API + `/task` agent runner |
+| TEI Embeddings | `8085` | HuggingFace TEI (`bge-small-en-v1.5`) |
+| TEI Reranker | `8086` | HuggingFace Cross-Encoder (`bge-reranker-base`) |
+| Cube BI Engine | `4000` / `4001` | Semantic data model & REST/SQL API |
+| Postgres | `5432` | Primary relational store |
+| Kafka / Zookeeper | `9092` / `2181` | Async event backbone |
+| Redis | `6379` | Hash dedup cache & triage retry state |
+| Neo4j | `7474` / `7687` | Entity-relationship graph database |
+| Qdrant | `6333` / `6334` | Dense vector search engine |
+
+</details>
+
+---
+
+## 🧪 Testing
+
+<details>
+<summary><strong>Run all test suites</strong></summary>
+
+```bash
+# Go microservices
+cd apps/api-gateway      && go test ./...
+cd apps/triage-worker    && go test ./...
+cd apps/s3-connector     && go test ./...
+cd apps/sqs-kafka-bridge && go test ./...
+
+# Python microservices
+cd apps/schema-aligner && poetry run pytest
+cd apps/storage-sync   && poetry run pytest
+cd apps/agentic-brain  && poetry run pytest
+cd apps/gpu-extractor  && poetry run pytest
+
+# Next.js dashboard
+cd apps/web-dashboard && npm test -- --watchAll=false
+```
+
+Goldens: `apps/schema-aligner/evals/golden/`
+
+</details>
+
+---
+
+## 📈 Horizontal Scalability
+
+<details>
+<summary><strong>Scaling notes</strong></summary>
+
+- **Stateless Edge Streaming** — `api-gateway` streams uploads directly to object storage, enabling stateless L7 load balancing with no memory buffering.
+- **Kafka Partition-Keyed Workers** — Scale ingest capacity by adding partitions and replicas:
+  ```bash
+  docker-compose up --scale gpu-extractor=4 --scale schema-aligner=8
+  ```
+- **Decoupled Model Sidecars** — vLLM and TEI run as shared sidecars; worker containers scale on cheap CPU nodes without duplicating VRAM weights.
+- **Stateless Task Claiming** — Agentic Brain agents claim jobs via `FOR UPDATE SKIP LOCKED` — no Redis locks needed.
+- **OTel End-to-End Tracing** — Trace context propagated through Kafka headers across Go and Python into Grafana (Loki + Tempo).
+- **Alembic Migrations** — Relational schema managed via `apps/storage-sync/alembic`.
+
+</details>
+
+---
+
+## 🛠 Prerequisites
+
+| Requirement | Version |
+|---|---|
+| Docker + Docker Compose v2 | latest |
+| Go | 1.25+ |
+| Python + Poetry | 3.10 – 3.12 |
+| Node.js | 20+ |
+| GPU | Optional (recommended for `gpu-extractor`) |
