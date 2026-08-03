@@ -16,7 +16,13 @@ app = FastAPI(title="Docling Layout Heron Server")
 
 processor = None
 model = None
-device = "cuda" if torch.cuda.is_available() else "cpu"
+if torch.cuda.is_available():
+    device = "cuda"
+# Force CPU on Apple Silicon because Hugging Face RT-DETR v2 
+# hardcodes torch.float64 tensors during forward pass, which crashes MPS.
+# (CPU inference for this tiny model is still extremely fast on M1 Max).
+else:
+    device = "cpu"
 id2label = {}
 
 class ImageRequest(BaseModel):
@@ -56,6 +62,11 @@ def extract_layout(req: ImageRequest):
         inputs = processor(images=img, return_tensors="pt").to(device)
         with torch.no_grad():
             outputs = model(**inputs)
+
+        # Move outputs to CPU to avoid Apple Silicon (MPS) float64 limitations
+        # during object detection post-processing
+        if hasattr(outputs, "to"):
+            outputs = outputs.to("cpu")
 
         target_sizes = [(img.height, img.width)]
         results = processor.post_process_object_detection(

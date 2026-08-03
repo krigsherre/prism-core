@@ -10,6 +10,9 @@ from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
 from typing import Optional
 from tenacity import retry, stop_after_attempt, wait_exponential
 
+from opentelemetry import trace
+from opentelemetry.propagate import extract
+
 import proto.prism.v1.events_pb2 as events_pb2
 
 from core.service import ExtractionService
@@ -17,6 +20,7 @@ from core.dom.chunker import SmartChunker
 from config.settings import settings
 
 logger = structlog.get_logger(__name__)
+tracer = trace.get_tracer(__name__)
 
 class KafkaConsumerService:
     def __init__(self, extraction_service: ExtractionService, max_concurrent: int = 4):
@@ -79,20 +83,31 @@ class KafkaConsumerService:
             if not event:
                 return
                 
-            structlog.contextvars.bind_contextvars(
-                tenant_id=event.tenant_id, event_id=event.event_id
-            )
-            logger.info("Received Kafka message", length=len(msg.value))
+            # Extract parent trace context from Kafka headers
+            headers = {}
+            if hasattr(msg, 'headers') and msg.headers:
+                for k, v in msg.headers:
+                    headers[k] = v.decode("utf-8") if v else ""
+            ctx = extract(headers)
             
-            try:
-                await self._publish_status(event, "EXTRACTING")
-                await self._route_event(event)
-            except Exception as e:
-                logger.error("Extraction pipeline failed", error=str(e))
-                logger.debug(traceback.format_exc())
+            with tracer.start_as_current_span("process_kafka_message", context=ctx) as span:
+                span.set_attribute("tenant_id", event.tenant_id)
+                span.set_attribute("event_id", event.event_id)
                 
-                await self._publish_status(event, "FAILED", error_message=str(e))
-                await self._route_to_dlq(msg, event)
+                structlog.contextvars.bind_contextvars(
+                    tenant_id=event.tenant_id, event_id=event.event_id
+                )
+                logger.info("Received Kafka message", length=len(msg.value))
+                
+                try:
+                    await self._publish_status(event, "EXTRACTING")
+                    await self._route_event(event)
+                except Exception as e:
+                    logger.error("Extraction pipeline failed", error=str(e))
+                    logger.debug(traceback.format_exc())
+                    
+                    await self._publish_status(event, "FAILED", error_message=str(e))
+                    await self._route_to_dlq(msg, event)
 
     def _parse_ingest_event(self, msg) -> Optional[events_pb2.IngestEvent]:
         event = events_pb2.IngestEvent()
