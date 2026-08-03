@@ -34,7 +34,7 @@ nohup docker run --rm --gpus all --network host \
 
 echo "Starting SmolDocling (port 8004) via vLLM..."
 nohup vllm serve docling-project/SmolDocling-256M-preview \
-    --host 0.0.0.0 --port 8004 --max-model-len 4096 --gpu-memory-utilization 0.40 --enforce-eager --trust-remote-code \
+    --host 0.0.0.0 --port 8004 --max-model-len 4096 --max-num-seqs 16 --gpu-memory-utilization 0.40 --enforce-eager --trust-remote-code \
     > vllm_8004.log 2>&1 &
 
 echo "APIs booting in background. Update your local .env with the Tailscale IP above."

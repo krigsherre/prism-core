@@ -43,7 +43,6 @@ ENV/
 env/
 **/tenant_synonyms.json
 
-# Cube.js
 infra/cube/.cubestore/
 infra/cube/.env
 infra/cube/node_modules/
